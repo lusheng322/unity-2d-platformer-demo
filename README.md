@@ -44,7 +44,7 @@
 **工程实践**
 - 玩家与敌人共用 `Entity` 基类（受击/击退/地形检测/组件缓存）
 - 技能参数全部 `[SerializeField]` 在 Inspector 配置，不在代码里写死数值
-- 关键设计点带“为什么这么写”的注释，排查过程记录在 `Docs/`
+- 关键设计点带"为什么这么写"的注释（例如"黑洞被 Destroy 时 Unity 不会补发 OnTriggerExit，必须手动解冻"）
 
 ---
 
@@ -70,8 +70,7 @@ Assets/
 │       └── Skill_Controller/            # 各技能生成物的运行时行为
 ├── Prefabs/                             # Sword / Clone / Crystal / Blackhole 等
 ├── Scenes/                              # Untitled.unity（主场景）
-├── Animataion/ Graphics/ Material/ Tile Palette/
-└── Docs/                                # 设计与排查记录
+├── Animataion/ Material/ Tile Palette/   # 动画片段、材质、瓦片调色板
 ```
 
 **三条设计主线**（面试常问）：
@@ -83,18 +82,20 @@ Assets/
 
 ## 四、已知问题与后续计划
 
-- [x] 敌人血量与死亡动画（`Death` 布尔 + 死亡后停 AI、延时销毁；动画需在 Animator 里接入，步骤见 `Docs/04_编辑器待办.md`）
+- [x] 敌人血量与死亡动画（Animator 的 `Death` 布尔 + 死亡后停 AI、延时销毁）
 - [ ] 血条与技能冷却 UI（UGUI）尚未实现（**玩家血量/死亡按当前设计暂不做**）
 - [ ] 没有存档系统
 - [ ] 技能生成物（剑/分身/水晶）目前用 `Instantiate` / `Destroy`，计划引入对象池
 - [ ] 敌人数量多时缺少性能测试（Profiler 数据）
 
-## 五、开发说明（AI 工具的使用边界）
+## 五、关于本仓库
 
-本项目的代码由本人跟着教程逐步完成，并在其之上做了自己的改造（黑洞机制重做、水晶改为闪避触发、一批 bug 的定位与修复）。
-排查与重构阶段使用了 AI 辅助（读代码、串因果链、提出修改方案），使用原则是：**AI 提出方案，取舍与验证由本人完成**——每一项改动都在 Unity 里实跑验证，涉及性能的结论用 Profiler / 控制台确认。
+- **包含**：全部游戏代码（`Assets/Script/`）、场景与预制体、动画片段与材质、Unity 工程配置（`ProjectSettings/`、`Packages/`）
+- **不包含**：第三方美术素材（`Assets/Graphics/`，约 16 MB，版权归原作者），以及 Unity 生成的缓存目录（`Library/`、`Temp/` 等）
+- 因此克隆后可以直接阅读全部代码；若要完整运行，需要自备对应的美术与音频素材
 
-- 排查记录：`Docs/01_Bug排查与改造记录.md`
-- 架构与面试讲解稿：`Docs/02_架构与讲解稿.md`
-- Unity / UE 对照与"为什么投 Unity 岗"话术：`Docs/03_Unity与UE对照.md`
-- 编辑器待办清单：`Docs/04_编辑器待办.md`
+## 六、开发说明
+
+- 引擎：Unity 2022.3 LTS（中国版 2022.3.50f1c1）
+- 语言：C#；所有数值参数通过 `[SerializeField]` 在 Inspector 配置
+- 代码规范：状态类与技能类职责单一，关键设计点用注释说明"为什么这么写"
