@@ -1,0 +1,40 @@
+# ---- Unity 生成目录（体积巨大，绝对不要提交）----
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# ---- IDE / Visual Studio / Rider ----
+/.vs/
+/.idea/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# ---- Unity 生成的报告与元数据 ----
+sysinfo.txt
+crashlytics-build.properties
+
+# ---- 第三方教程资源包（体积大，按需删除或移出 Assets）----
+/Assets/RPG.zip
+/Assets/RPG.zip.meta
+
+# ---- 操作系统 ----
+[Dd]esktop.ini
+Thumbs.db
+.DS_Store

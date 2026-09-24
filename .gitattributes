@@ -1,0 +1,22 @@
+# 统一换行符，避免 Windows / macOS 协作时整文件 diff
+* text=auto eol=lf
+
+# Unity 的场景 / 预制体 / 资产是 YAML：交给 Unity 自己管理，不做换行转换
+*.unity -text
+*.prefab -text
+*.asset -text
+*.mat -text
+*.controller -text
+*.anim -text
+*.meta -text
+
+# 二进制文件
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.psd binary
+*.ttf binary
+*.otf binary
+*.zip binary
+*.dll binary
+*.so binary

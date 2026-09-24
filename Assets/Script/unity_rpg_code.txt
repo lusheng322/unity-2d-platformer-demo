@@ -1,0 +1,2862 @@
+﻿C:\1\project\RPG\Assets\Script\Entity.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Entity : MonoBehaviour
+{
+    [Header("Knocked Info")]
+    [SerializeField] protected Vector2 knockBackDirection;
+    [SerializeField] protected float knockBackDuration;
+    protected bool isKnocked;
+
+    [Header("Collision Info")]
+    public Transform attackCheck;
+    public float attackCheckRadius;
+    [SerializeField] private Transform groundCheck;
+    [SerializeField] private float groundCheckDistance;
+    [SerializeField] private LayerMask whatIsGround;
+    [SerializeField] protected Transform wallCheck;
+    [SerializeField] private float wallCheckDistance;
+
+    public float facingDir { get; private set; } = 1;
+    protected bool facingRight = true;
+
+
+    #region Components
+    public Animator anim { get; private set; }
+    public Rigidbody2D rb { get; private set; }
+    public EntityFX fX { get; private set; }
+    public SpriteRenderer sr { get; private set; }
+    #endregion
+
+    protected virtual void Awake()
+    {
+
+    }
+
+    protected virtual void Start()
+    {
+        sr = GetComponentInChildren<SpriteRenderer>();
+        anim = GetComponentInChildren<Animator>();
+        fX = GetComponent<EntityFX>();
+        rb = GetComponent<Rigidbody2D>();
+    }
+
+    protected virtual void Update()
+    {
+        
+    }
+
+    public virtual void Damage()
+    {
+        fX.StartCoroutine("FlashFX");
+        StartCoroutine("HitKnockBack");
+        Debug.Log(gameObject.name + "   was damaged");
+    }
+
+    private IEnumerator HitKnockBack()
+    {
+        isKnocked = true;
+
+        rb.velocity = new Vector2(knockBackDirection.x * -facingDir, knockBackDirection.y);
+        
+        yield return new WaitForSeconds(knockBackDuration);
+        isKnocked = false;
+    }
+
+    #region Velocity
+    public void SetZeroVelocity()
+    {
+        if (isKnocked)
+            return;
+
+        rb.velocity = new Vector2(0, 0);
+    }
+
+    public void SetVelocity(float _xVelocity, float _yVelocity)
+    {
+        if (isKnocked) 
+            return;
+
+        rb.velocity = new Vector2(_xVelocity, _yVelocity);
+        FlipController(_xVelocity);
+    }
+    #endregion
+
+    #region Collsion
+    public virtual bool IsGroundDetected() => Physics2D.Raycast(groundCheck.position, Vector2.down, groundCheckDistance, whatIsGround);
+    public virtual bool IsWallDetected() => Physics2D.Raycast(wallCheck.position, Vector2.right * facingDir, wallCheckDistance, whatIsGround);
+    protected virtual void OnDrawGizmos()
+    {
+        Gizmos.DrawLine(groundCheck.position, new Vector3(groundCheck.position.x, groundCheck.position.y - groundCheckDistance));
+        Gizmos.DrawLine(wallCheck.position, new Vector3(wallCheck.position.x + wallCheckDistance, wallCheck.position.y));
+        Gizmos.DrawWireSphere(attackCheck.position, attackCheckRadius);
+    }
+    #endregion
+
+    #region Flip
+    public virtual void Flip()
+    {
+        facingRight = !facingRight;
+        facingDir *= -1;
+        transform.Rotate(0, 180, 0);
+    }
+
+    public virtual void FlipController(float _x)
+    {
+        if ((_x > 0 && !facingRight) || (_x < 0 && facingRight))
+        {
+            Flip();
+        }
+    }
+    #endregion
+
+    public void MakeTransparent(bool _transparent)
+    {
+        if(_transparent)
+            sr.color = Color.clear;
+        else
+            sr.color = Color.white;
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\EntityFX.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class EntityFX : MonoBehaviour
+{
+    private SpriteRenderer sr;
+
+    [Header("Flash FX")]
+    [SerializeField] private float flashDuration;
+    [SerializeField] private Material hitMat;
+    private Material originalMat;
+
+    private void Start()
+    {
+        sr = GetComponentInChildren<SpriteRenderer>();
+        originalMat = sr.material;
+    }
+
+    private IEnumerator FlashFX()
+    {
+        sr.material = hitMat;
+
+        yield return new WaitForSeconds(flashDuration);
+
+        sr.material = originalMat;
+    }
+
+    private void RedColorBlink()
+    {
+        if(sr.color != Color.white)
+        {
+            sr.color = Color.white;
+        }
+        else
+        {
+            sr.color = Color.red;
+        }
+    }
+
+    private void CancelRedBlink()
+    {
+        CancelInvoke();
+        sr.color = Color.white;
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\ParallaxBackground.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class ParallaxBackground : MonoBehaviour
+{
+    private GameObject cam;
+
+    [SerializeField] private float parallaxEffect;
+
+    private float xPosition;
+    private float length;
+
+    void Start()
+    {
+        cam = GameObject.Find("Main Camera");
+
+        length = GetComponent<SpriteRenderer>().bounds.size.x;
+        xPosition = transform.position.x;
+    }
+
+    void Update()
+    {
+        float distanceMoved = cam.transform.position.x * (1- parallaxEffect);
+        float distanceToMove = cam.transform.position.x * parallaxEffect;
+
+        transform.position = new Vector3(xPosition + distanceToMove, transform.position.y);
+
+        if (distanceMoved > xPosition + length)
+            xPosition = xPosition + length;
+        else if (distanceMoved < xPosition - length)
+            xPosition = xPosition - length;
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\PlayerManager.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerManager : MonoBehaviour
+{
+    public static PlayerManager instance;
+    public Player player;
+
+    private void Awake()
+    {
+        if(instance != null)
+        {
+            Destroy(instance.gameObject);
+        }
+        else
+        {
+            instance = this;
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Enemy\Enemy.cs
+using System.Collections;
+using System.Collections.Generic;
+using Unity.VisualScripting.Antlr3.Runtime.Tree;
+using UnityEngine;
+using UnityEngine.Video;
+
+public class Enemy : Entity
+{
+    [SerializeField] private LayerMask whatIsPlayer;
+
+    [Header("Stunned Info")]
+    public float stunDuration;
+    public Vector2 stunDirection;
+    protected bool canBeStunned;
+    [SerializeField] private GameObject counterImaged;
+
+    [Header("Move Info")]
+    public float moveSpeed;
+    public float idleTime;
+    public float battleTime;
+    private float defaultMoveSpeed;
+
+    [Header("Attack Info")]
+    public float attackDistance;
+     public float attackCooldown;
+    [HideInInspector] public float lastTimeAttacked;
+
+    public EnemyStateMachine stateMachine {  get; private set; }
+
+    protected override void Awake()
+    {
+        base.Awake();
+        stateMachine = new EnemyStateMachine();
+
+        defaultMoveSpeed = moveSpeed;
+    }
+
+    protected override void Update()
+    {
+        base.Update();
+
+        stateMachine.currentState.Update();
+    }
+
+    public virtual void FreezeTime(bool _timeFrozen)
+    {
+        if (_timeFrozen)
+        {
+            moveSpeed = 0;
+            anim.speed = 0;
+        }
+        else
+        {
+            moveSpeed = defaultMoveSpeed;
+            anim.speed = 1;
+        }
+    }
+
+    protected virtual IEnumerator FreezeTimerFor(float _seconds)
+    {
+        FreezeTime(true);
+
+        yield return new WaitForSeconds(_seconds);
+
+        FreezeTime(false);
+    }
+
+    #region Counter Attack Window
+    public virtual void OpenCounterAttackWindow()
+    {
+        canBeStunned = true;
+        counterImaged.SetActive(true);
+    }
+
+    public virtual void CloseCounterAttackWindow()
+    {
+        canBeStunned= false;
+        counterImaged.SetActive(false);
+    }
+    #endregion
+
+    public virtual bool CanBeStunned()
+    {
+        if (canBeStunned)
+        {
+            CloseCounterAttackWindow();
+            return true;
+        }
+
+        return false;
+    }
+
+    public virtual void AnimationFinishiTrigger() => stateMachine.currentState.AnimationFinishTrigger();
+
+    public virtual RaycastHit2D IsPlayerDetected() => Physics2D.Raycast(wallCheck.position, Vector2.right * facingDir, 50, whatIsPlayer);
+
+    protected override void OnDrawGizmos()
+    {
+        base.OnDrawGizmos();
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(transform.position, new Vector3(transform.position.x + attackDistance * facingDir, transform.position.y));
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Enemy\EnemyState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class EnemyState 
+{
+    protected EnemyStateMachine stateMachine;
+    protected Enemy enemyBase;
+
+    private string animBoolName;
+
+    protected float stateTimer;
+    protected bool triggerCalled;
+
+    protected Rigidbody2D rb;
+
+    public EnemyState(Enemy _enemyBase, EnemyStateMachine _stateMachine, string _animBoolName, Enemy_Skeleton _enemy)
+    {
+        this.stateMachine = _stateMachine;
+        this.enemyBase = _enemyBase;
+        this.animBoolName = _animBoolName;
+    }
+
+    public virtual void Update()
+    {
+        stateTimer -= Time.deltaTime;
+    }
+
+    public virtual void Enter() 
+    {
+        triggerCalled = false;
+        enemyBase.anim.SetBool(animBoolName, true);
+        rb = enemyBase.rb;
+    }
+
+    public virtual void Exit()
+    {
+        enemyBase.anim.SetBool(animBoolName, false);
+    }
+
+    public virtual void AnimationFinishTrigger()
+    {
+        triggerCalled = true;
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Enemy\EnemyStateMachine.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class EnemyStateMachine 
+{
+    public EnemyState currentState {  get; private set; }
+
+    public void Initialize(EnemyState _startState)
+    {
+        currentState = _startState;
+        currentState.Enter();
+    }
+
+    public void ChangeState(EnemyState _newState)
+    {
+        currentState.Exit();
+        currentState = _newState;
+        currentState.Enter();
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Enemy\Skeleton\Enemy_Skeleton.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Enemy_Skeleton : Enemy
+{
+    #region State
+
+    public SkeletonIdleState idleState {  get; private set; }
+    public SkeletonMoveState moveState { get; private set; }
+    public SkeletonBattleState battleState { get; private set; }
+    public SkeletonAttackState attackState { get; private set; }
+    public SkeletonStunnedState stunnedState { get; private set; }
+    #endregion
+
+    protected override void Awake()
+    {
+        base.Awake();
+
+        idleState = new SkeletonIdleState(this, stateMachine, "Idle", this);
+        moveState = new SkeletonMoveState(this, stateMachine, "Move", this);
+        battleState = new SkeletonBattleState(this, stateMachine, "Move", this);
+        attackState = new SkeletonAttackState(this, stateMachine, "Attack", this);
+        stunnedState = new SkeletonStunnedState(this, stateMachine, "Stunned", this);
+    }
+
+    protected override void Start()
+    {
+        base.Start();
+        stateMachine.Initialize(idleState);
+    }
+
+    protected override void Update()
+    {
+        base.Update();
+
+        if(Input.GetKeyDown(KeyCode.U))
+        {
+            stateMachine.ChangeState(stunnedState);
+        }
+    }
+
+    public override bool CanBeStunned()
+    {
+        if(base.CanBeStunned())
+        {
+            stateMachine.ChangeState(stunnedState);
+            return true;
+        }
+        return false;
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Enemy\Skeleton\Enemy_SkeletonAnimationTriggers.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Enemy_SkeletonAnimationTriggers : MonoBehaviour
+{
+    private Enemy_Skeleton enemy => GetComponentInParent<Enemy_Skeleton>();
+
+    private void AnimationTrigger()
+    {
+        enemy.AnimationFinishiTrigger();
+    }
+
+    private void AttackTrigger()
+    {
+        Collider2D[] colliders = Physics2D.OverlapCircleAll(enemy.attackCheck.position, enemy.attackCheckRadius);
+
+        foreach(var hit in colliders)
+        {
+            if (hit.GetComponent<Player>() != null)
+                hit.GetComponent<Player>().Damage();
+        }
+    }
+
+    private void OpenCounterAttackWindow()=> enemy.OpenCounterAttackWindow();
+    private void CloseCounterAttackWindow()=> enemy.CloseCounterAttackWindow();
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Enemy\Skeleton\SkeletonAttackState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class SkeletonAttackState : EnemyState
+{
+    private Enemy_Skeleton enemy;
+    public SkeletonAttackState(Enemy _enemyBase, EnemyStateMachine _stateMachine, string _animBoolName, Enemy_Skeleton _enemy) : base(_enemyBase, _stateMachine, _animBoolName, _enemy)
+    {
+        this.enemy = _enemy;
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+        enemy.lastTimeAttacked = Time.time;
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        enemy.SetZeroVelocity();
+
+        if(triggerCalled)
+        {
+            stateMachine.ChangeState(enemy.battleState);
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Enemy\Skeleton\SkeletonBattleState.cs
+using System.Collections;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+
+public class SkeletonBattleState : EnemyState
+{
+    private Transform player;
+    private Enemy_Skeleton enemy;
+    private int moveDir;
+
+    public SkeletonBattleState(Enemy _enemyBase, EnemyStateMachine _stateMachine, string _animBoolName, Enemy_Skeleton _enemy) : base(_enemyBase, _stateMachine, _animBoolName, _enemy)
+    {
+        this.enemy = _enemy;
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+
+        player = PlayerManager.instance.player.transform;
+    }
+    public override void Update()
+    {
+        base.Update();
+
+        if (enemy.IsPlayerDetected())
+        {
+            stateTimer = enemy.battleTime;
+
+            if(enemy.IsPlayerDetected().distance < enemy.attackDistance)
+            {
+                if (CanAttack())
+                    stateMachine.ChangeState(enemy.attackState);
+            }
+        }
+        else
+        {
+            if (stateTimer < 0 || Vector2.Distance(player.transform.position, enemy.transform.position) > 10)
+                stateMachine.ChangeState(enemy.idleState);
+        }
+
+        if (player.position.x > enemy.transform.position.x)
+            moveDir = 1;
+        else if(player.position.x < enemy.transform.position.x)
+            moveDir = -1;
+
+        enemy.SetVelocity(enemy.moveSpeed * moveDir, rb.velocity.y);
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    private bool CanAttack()
+    {
+        if(Time.time >= enemy.lastTimeAttacked + enemy.attackCooldown)
+        {
+            return true;
+        }
+
+        return false;
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Enemy\Skeleton\SkeletonGroundedState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class SkeletonGroundedState : EnemyState
+{
+    protected Enemy_Skeleton enemy;
+    protected Transform player;
+    public SkeletonGroundedState(Enemy _enemyBase, EnemyStateMachine _stateMachine, string _animBoolName, Enemy_Skeleton _enemy) : base(_enemyBase, _stateMachine, _animBoolName, _enemy)
+    {
+        this.enemy = _enemy;
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+        player = PlayerManager.instance.player.transform;
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    public override void Update()
+    {
+        base.Update();
+        if(enemy.IsPlayerDetected() || Vector2.Distance(enemy.transform.position,player.position) < 2)
+        {
+            stateMachine.ChangeState(enemy.battleState);
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Enemy\Skeleton\SkeletonIdleState.cs
+using System.Collections;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEngine;
+
+public class SkeletonIdleState : SkeletonGroundedState
+{
+
+    public SkeletonIdleState(Enemy _enemyBase, EnemyStateMachine _stateMachine, string _animBoolName, Enemy_Skeleton _enemy) : base(_enemyBase, _stateMachine, _animBoolName, _enemy)
+    {
+        this.enemy = _enemy;
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+        stateTimer = enemy.idleTime;
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        if (stateTimer < 0)
+            stateMachine.ChangeState(enemy.moveState);
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Enemy\Skeleton\SkeletonMoveState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class SkeletonMoveState : SkeletonGroundedState
+{
+    public SkeletonMoveState(Enemy _enemyBase, EnemyStateMachine _stateMachine, string _animBoolName, Enemy_Skeleton _enemy) : base(_enemyBase, _stateMachine, _animBoolName, _enemy)
+    {
+        this.enemy = _enemy;
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        enemy.SetVelocity(enemy.moveSpeed * enemy.facingDir, rb.velocity.y);
+
+        if(enemy.IsWallDetected() || !enemy.IsGroundDetected())
+        {
+            enemy.Flip();
+            enemy.stateMachine.ChangeState(enemy.idleState);
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Enemy\Skeleton\SkeletonStunnedState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class SkeletonStunnedState : EnemyState
+{
+    private Enemy_Skeleton enemy;
+    public SkeletonStunnedState(Enemy _enemyBase, EnemyStateMachine _stateMachine, string _animBoolName, Enemy_Skeleton _enemy) : base(_enemyBase, _stateMachine, _animBoolName, _enemy)
+    {
+        this.enemy = _enemy;
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+
+        enemy.fX.InvokeRepeating("RedColorBlink", 0, .1f);
+
+        stateTimer = enemy.stunDuration;
+
+        rb.velocity = new Vector2(-enemy.facingDir * enemy.stunDirection.x,enemy.stunDirection.y);
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+
+        enemy.fX.Invoke("CancelRedBlink", 0);
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        if(stateTimer < 0 )
+        {
+            stateMachine.ChangeState(enemy.idleState);
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\Player.cs
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UIElements;
+using UnityEngine.XR;
+
+public class Player : Entity
+{
+    [Header("Attack details")]
+    public Vector2[] attackMovent;
+    public float counterAttackDuration = .2f;
+
+    public bool isBusy {  get; private set; }
+
+    [Header("Move Info")]
+    public float moveSpeed = 8f;
+    public float jumpforce;
+    public float swordReturnImpact;
+
+    [Header("Dash Info")]
+    
+    public float dashSpeed;
+    public float dashDuration;
+    public float dashDir {  get; private set; }
+
+    public SkillManager skill {  get; private set; }
+    public GameObject sword { get; private set; }
+    
+
+    #region State
+    public PlayerStateMachine stateMachine {  get; private set; }
+    public PlayerIdleState idleState {  get; private set; }
+    public PlayerMoveState moveState { get; private set; }
+    public PlayerJumpState jumpState { get; private set; }
+    public PlayerAirState airState { get; private set; }
+    public PlayerWallSlideState wallSlide { get; private set; }
+    public PlayerWallJumpState wallJump { get; private set; }
+    public PlayerDashState dashState { get; private set; }
+
+    public PlayerPrimaryAttack primaryAttack { get; private set; }
+    public PlayerCounterAttackState counterAttackState { get; private set; }
+
+    public PlayerAimSwordState aimSword { get; private set; }
+    public PlayerCatchSwordState catchSword { get; private set; }
+    public PlayerBlackholeState blackhole { get; private set; }
+
+    #endregion
+    protected override void Awake()
+    {
+        base.Awake();
+        stateMachine = new PlayerStateMachine();
+
+        idleState = new PlayerIdleState(stateMachine, this, "Idle");
+        moveState = new PlayerMoveState(stateMachine, this, "Move");
+        jumpState = new PlayerJumpState(stateMachine, this, "Jump");
+        airState = new PlayerAirState(stateMachine, this, "Jump");
+        dashState = new PlayerDashState(stateMachine, this, "Dash");
+        wallSlide = new PlayerWallSlideState(stateMachine, this, "WallSlide");
+        wallJump = new PlayerWallJumpState(stateMachine, this, "Jump");
+        
+        primaryAttack = new PlayerPrimaryAttack(stateMachine, this, "Attack");
+        counterAttackState = new PlayerCounterAttackState(stateMachine, this, "CounterAttack");
+
+        aimSword = new PlayerAimSwordState(stateMachine, this, "AimSword");
+        catchSword = new PlayerCatchSwordState(stateMachine, this, "CatchSword");
+        blackhole = new PlayerBlackholeState(stateMachine, this, "Jump");
+    }
+
+    protected override void Start()
+    {
+        base.Start();
+
+        skill = SkillManager.instance;
+
+        stateMachine.Initialize(idleState);
+    }
+
+    protected override void Update()
+    {
+        base.Update();
+
+        stateMachine.currentState.Update();
+        CheckForDashInput();
+
+        if(Input.GetKeyDown(KeyCode.F))
+        {
+            skill.crystal.CanUseSkill();
+        }
+    }
+
+    public void AssignNewSword(GameObject _newSword)
+    {
+        sword = _newSword;
+    }
+
+    public void CatchTheSword()
+    {
+        Destroy(sword);
+
+        stateMachine.ChangeState(catchSword);
+    }
+
+    public IEnumerator BusyFor(float _seconds)
+    {
+        isBusy = true;
+
+        yield return new WaitForSeconds(_seconds);
+        isBusy = false;
+    }
+
+    public void AnimationTrigger() => stateMachine.currentState.AnimationFinishTrigger();
+
+    public void CheckForDashInput()
+    {
+        
+
+        if (IsWallDetected())
+        {
+            return;
+        }
+        
+        
+
+        if(Input.GetKeyDown(KeyCode.LeftShift) && SkillManager.instance.dash.CanUseSkill())
+        {
+            dashDir = Input.GetAxisRaw("Horizontal");
+
+            if(dashDir == 0)
+            {
+                dashDir = facingDir;
+            }
+
+            stateMachine.ChangeState(dashState);
+        }
+    }
+    
+    
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerAimSwordState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerAimSwordState : PlayerState
+{
+    public PlayerAimSwordState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+
+        player.skill.sword.DotsActive(true);
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+
+        player.StartCoroutine("BusyFor", .2f);
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        player.SetZeroVelocity();
+
+        if (Input.GetKeyUp(KeyCode.Mouse1))
+        {
+            stateMachine.ChangeState(player.idleState);
+        }
+
+        Vector2 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+
+        if (player.transform.position.x > mousePosition.x && player.facingDir == 1)
+            player.Flip();
+        else if (player.transform.position.x < mousePosition.x && player.facingDir == -1)
+            player.Flip();
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerAirState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerAirState : PlayerState
+{
+    public PlayerAirState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    public override void Update()
+    {
+        base.Update();
+        
+        if(xInput != 0)
+        {
+            player.SetVelocity(player.moveSpeed * .8f * xInput, rb.velocity.y);
+        }
+        
+        if(player.IsWallDetected())
+        {
+            stateMachine.ChangeState(player.wallSlide);
+        }
+
+        if(player.IsGroundDetected())
+        {
+            stateMachine.ChangeState(player.idleState);
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerAnimationTriggers.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class PlayerAnimationTriggers : MonoBehaviour
+{
+    private Player player => GetComponentInParent<Player>();
+
+    private void AnimationTrigger()
+    {
+        player.AnimationTrigger();
+    }
+
+    private void AttackTrigger()
+    {
+        Collider2D[] colliders = Physics2D.OverlapCircleAll(player.attackCheck.position, player.attackCheckRadius);
+
+        foreach(var hit in colliders)
+        {
+            if (hit.GetComponent<Enemy>() != null)
+                hit.GetComponent<Enemy>().Damage();
+        }
+    }
+
+    private void SwordTrigger()
+    {
+        player.skill.sword.CreatSword();
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerBlackholeState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerBlackholeState : PlayerState
+{
+    private float flyTime = .4f;
+    private bool skillUsed;
+    private float defaultGravity;
+
+    public PlayerBlackholeState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void AnimationFinishTrigger()
+    {
+        base.AnimationFinishTrigger();
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+
+        defaultGravity = player.rb.gravityScale;
+        skillUsed = false;
+        stateTimer = flyTime;
+        rb.gravityScale = 0;
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+
+        player.rb.gravityScale = defaultGravity;
+
+        PlayerManager.instance.player.MakeTransparent(false);
+
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        if(stateTimer > 0)
+        {
+            rb.velocity = new Vector2(0, 15);
+        }
+
+        if(stateTimer < 0)
+        {
+            rb.velocity = new Vector2(0, -.1f);
+
+            if(!skillUsed)
+            {
+                if(player.skill.blackhole.CanUseSkill())
+                    skillUsed = true;
+            }
+        }
+
+        if (player.skill.blackhole.SkillCompleted())
+        {
+            stateMachine.ChangeState(player.airState);
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerCatchSwordState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerCatchSwordState : PlayerState
+{
+    private Transform sword;
+    public PlayerCatchSwordState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+
+        sword = player.sword.transform;
+
+        if (player.transform.position.x > sword.position.x && player.facingDir == 1)
+            player.Flip();
+        else if (player.transform.position.x < sword.position.x && player.facingDir == -1)
+            player.Flip();
+
+        rb.velocity = new Vector2(player.swordReturnImpact * -player.facingDir,rb.velocity.y);
+
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+
+        player.StartCoroutine("BusyFor", .1f);
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        if(triggerCalled)
+        {
+            stateMachine.ChangeState(player.idleState);
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerCounterAttackState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerCounterAttackState : PlayerState
+{
+    public PlayerCounterAttackState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+
+        stateTimer = player.counterAttackDuration;
+        player.anim.SetBool("SuccessfulCounterAttack", false);
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        player.SetZeroVelocity();
+
+        Collider2D[] colliders = Physics2D.OverlapCircleAll(player.attackCheck.position, player.attackCheckRadius);
+
+        foreach (var hit in colliders)
+        {
+            if (hit.GetComponent<Enemy>() != null)
+            {
+                if (hit.GetComponent<Enemy>().CanBeStunned())
+                {
+                    stateTimer = 10;
+                    player.anim.SetBool("SuccessfulCounterAttack", true);
+
+                }
+            }
+                
+            if(stateTimer < 0 || triggerCalled)
+            {
+                stateMachine.ChangeState(player.idleState);
+            }
+        }
+
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerDashState.cs
+using System.Collections;
+using System.Collections.Generic;
+using Unity.VisualScripting;
+using UnityEngine;
+
+public class PlayerDashState : PlayerState
+{
+    public PlayerDashState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+
+        player.skill.clone.CreatClone(player.transform, Vector3.zero);
+
+        stateTimer = player.dashDuration;
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+
+        player.SetVelocity(0, rb.velocity.y);
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        if(!player.IsGroundDetected() && player.IsWallDetected())
+        {
+            stateMachine.ChangeState(player.wallSlide);
+        }
+
+        player.SetVelocity(player.dashDir * player.dashSpeed, 0);
+
+        if(stateTimer < 0)
+        {
+            stateMachine.ChangeState(player.idleState);
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerGroundedState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerGroundedState : PlayerState
+{
+    public PlayerGroundedState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        if(Input.GetKeyDown(KeyCode.R))
+        {
+            stateMachine.ChangeState(player.blackhole);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Mouse1) && HasNoSword())
+        {
+            stateMachine.ChangeState(player.aimSword);
+        }
+
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            stateMachine.ChangeState(player.counterAttackState);
+        }
+
+        if (!player.IsGroundDetected())
+        {
+            stateMachine.ChangeState(player.airState);
+        }
+
+        if(Input.GetKeyDown(KeyCode.Space) && player.IsGroundDetected())
+        {
+            stateMachine.ChangeState(player.jumpState);
+        }
+
+        if(Input.GetKeyDown(KeyCode.Mouse0))
+        {
+            stateMachine.ChangeState(player.primaryAttack);
+        }
+    }
+
+    private bool HasNoSword()
+    {
+        if (!player.sword)
+        {
+            return true;
+        }
+
+        player.sword.GetComponent<Sword_Skill_Controller>().ReturnSword();
+        return false;
+    }
+}
+    
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerIdleState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class PlayerIdleState : PlayerGroundedState
+{
+    public PlayerIdleState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+
+        player.SetZeroVelocity();
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        if(xInput == player.facingDir && player.IsWallDetected())
+        {
+            return;
+        }
+
+        if(xInput != 0 && !player.isBusy)
+        {
+            stateMachine.ChangeState(player.moveState);
+        }
+    }
+}
+
+    
+
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerJumpState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerJumpState : PlayerState
+{
+    public PlayerJumpState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        
+        base.Enter();
+
+        rb.velocity = new Vector2(rb.velocity.x, player.jumpforce);
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    public override void Update()
+    {
+        base.Update();
+        if(rb.velocity.y < 0)
+        {
+            stateMachine.ChangeState(player.airState);
+        }
+        if (xInput != 0)
+        {
+            player.SetVelocity(player.moveSpeed * .8f * xInput, rb.velocity.y);
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerMoveState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerMoveState : PlayerGroundedState
+{
+    public PlayerMoveState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        player.SetVelocity(xInput * player.moveSpeed, rb.velocity.y);
+
+        if(xInput == 0 || player.IsWallDetected())
+        {
+            stateMachine.ChangeState(player.idleState);
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerPrimaryAttack.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerPrimaryAttack : PlayerState
+{
+    private int comboCounter;
+
+    private float comboWindow = 2f;
+    private float lastAttackTime;
+    
+    public PlayerPrimaryAttack(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+
+        xInput = 0;
+
+        if(comboCounter == 3 || Time.time >= lastAttackTime+comboWindow)
+        {
+            comboCounter = 0;
+        }
+
+        player.anim.SetInteger("ComboCounter", comboCounter);
+
+        float attackDir = player.facingDir;
+
+        if(xInput != 0)
+            attackDir = xInput;
+
+        player.SetVelocity(player.attackMovent[comboCounter].x * attackDir, player.attackMovent[comboCounter].y);
+
+        stateTimer = .1f;
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+
+        player.StartCoroutine("BusyFor", .15f);
+
+        comboCounter++;
+        lastAttackTime = Time.time;
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        if(stateTimer < 0)
+        {
+            player.SetZeroVelocity();
+        }
+        if (triggerCalled)
+        {
+            stateMachine.ChangeState(player.idleState);
+        }
+
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerState
+{
+    protected PlayerStateMachine stateMachine;
+    protected Player player;
+
+    protected Rigidbody2D rb;
+
+    protected float xInput;
+    protected float yInput;
+    private string animBoolName;
+
+    protected float stateTimer;
+    protected bool triggerCalled;
+
+    public PlayerState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName)
+    {
+        this.stateMachine = _stateMachine;
+        this.player = _player;
+        this.animBoolName = _animBoolName;
+    }
+
+    public virtual void Enter()
+    {
+        player.anim.SetBool(animBoolName, true);
+        rb = player.rb;
+        triggerCalled = false;
+    }
+
+    public virtual void Update()
+    {
+        stateTimer -= Time.deltaTime;
+
+        xInput = Input.GetAxisRaw("Horizontal");
+        yInput = Input.GetAxisRaw("Vertical");
+        player.anim.SetFloat("yVelocity", rb.velocity.y);
+    }
+
+    public virtual void Exit()
+    {
+        player.anim.SetBool(animBoolName, false);
+    }
+
+    public virtual void AnimationFinishTrigger()
+    {
+        triggerCalled = true;
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerStateMachine.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerStateMachine
+{
+    public PlayerState currentState {  get; private set; }
+
+    public void Initialize(PlayerState _startState)
+    {
+        currentState = _startState;
+        currentState.Enter();
+    }
+
+    public void ChangeState(PlayerState _newState)
+    {
+        currentState.Exit();
+        currentState = _newState;
+        currentState.Enter();
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerWallJumpState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerWallJumpState : PlayerState
+{
+    public PlayerWallJumpState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+
+        stateTimer = 1f;
+        player.SetVelocity(5 * -player.facingDir, player.jumpforce);
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        if(stateTimer < 0)
+        {
+            stateMachine.ChangeState(player.airState);
+        }
+
+        if(player.IsGroundDetected())
+        {
+            stateMachine.ChangeState(player.idleState);
+        }
+
+        if (xInput != 0)
+        {
+            player.SetVelocity(player.moveSpeed * .8f * xInput, rb.velocity.y);
+        }
+    }
+
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Player\PlayerWallSlideState.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PlayerWallSlideState : PlayerState
+{
+    public PlayerWallSlideState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
+    {
+    }
+
+    public override void Enter()
+    {
+        base.Enter();
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        if(Input.GetKeyDown(KeyCode.Space))
+        {
+            stateMachine.ChangeState(player.wallJump);
+            return;
+        }
+
+        if(xInput != 0 && player.facingDir != xInput)
+        {
+            stateMachine.ChangeState(player.idleState);
+        }
+
+        if (yInput < 0)
+        {
+            player.SetVelocity(0, rb.velocity.y);
+        }
+        else
+        {
+            player.SetVelocity(0, rb.velocity.y * .7f);
+        }
+
+        if (player.IsGroundDetected())
+        {
+            stateMachine.ChangeState(player.idleState);
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\Blackhole_Skill.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Blackhole_Skill : Skill
+{
+    [SerializeField] private int amountOfAttacks;
+    [SerializeField] private float cloneAttackCooldown;
+    [SerializeField] private float blackholeDuration;
+    [Space]
+    [SerializeField] private GameObject BlackholePrefab;
+    [SerializeField] private float maxsize;
+    [SerializeField] private float growSpeed;
+    [SerializeField] private float shrinkSpeed;
+
+    Blackhole_Skill_Controller currentBlackhole;
+    public override bool CanUseSkill()
+    {
+        return base.CanUseSkill();
+    }
+
+    public override void UseSkill()
+    {
+        base.UseSkill();
+
+        GameObject newBlackhole = Instantiate(BlackholePrefab, player.transform.position, Quaternion.identity);
+        currentBlackhole = newBlackhole.GetComponent<Blackhole_Skill_Controller>();
+        currentBlackhole.SetupBlackhole(maxsize, growSpeed, shrinkSpeed, amountOfAttacks, cloneAttackCooldown, blackholeDuration);
+    }
+
+    protected override void Start()
+    {
+        base.Start();
+    }
+
+    protected override void Update()
+    {
+        base.Update();
+    }
+
+    public bool SkillCompleted()
+    {
+        if (!currentBlackhole)
+            return false;
+
+        if (currentBlackhole.playerCanExitState)
+        {
+            currentBlackhole = null;
+            return true;
+        }
+
+        return false;
+    }
+
+    }
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\Clone_Skill.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Clone_Skill : Skill
+{
+    [Header("Clone Info")]
+    [SerializeField] private GameObject clonePrefab;
+    [SerializeField] private float cloneDuration;
+    [SerializeField] private bool canAttack;
+
+    public void CreatClone(Transform _clonePosition, Vector3 _offset)
+    {
+        GameObject newClone = Instantiate(clonePrefab);
+
+        newClone.GetComponent<Clone_Skill_Controller>().SetupClone(_clonePosition, cloneDuration,canAttack, _offset, FindClosestEnemy(newClone.transform));
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\Crystal_Skill.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Crystal_Skill : Skill
+{
+    [SerializeField] private float crystalDuraiton;
+    [SerializeField] private GameObject crystalPrefab;
+    private GameObject currentCrystal;
+
+    [Header("Crystal Explosive")]
+    [SerializeField] private bool canExplode;
+
+    [Header("Crystal Move")]
+    [SerializeField] private bool canMove;
+    [SerializeField] private float moveSpeed;
+
+    public override void UseSkill()
+    {
+        base.UseSkill();
+
+        if(currentCrystal == null)
+        {
+            currentCrystal = Instantiate(crystalPrefab, player.transform.position, Quaternion.identity);
+            Crystal_Skill_Controller currentCrystalScript = currentCrystal.GetComponent<Crystal_Skill_Controller>();
+            currentCrystalScript.SetupCrystal(crystalDuraiton, canExplode, canMove, moveSpeed, FindClosestEnemy(currentCrystal.transform));
+
+        }
+        else
+        {
+            if (canMove)
+                return;
+
+            Vector2 playerPo = player.transform.position;
+            player.transform.position = currentCrystal.transform.position;
+            currentCrystal.transform.position = playerPo;
+
+            currentCrystal.GetComponent<Crystal_Skill_Controller>()?.FinishCrystal();
+        }
+    }
+
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\Dash_Skill.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Dash_Skill : Skill
+{
+    public override void UseSkill()
+    {
+        base.UseSkill();
+
+
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\Skill.cs
+using System.Collections;
+using System.Collections.Generic;
+using Unity.VisualScripting;
+using UnityEngine;
+
+public class Skill : MonoBehaviour
+{
+    [SerializeField] protected float cooldown;
+    protected float cooldownTimer;
+
+    protected Player player;
+
+    protected virtual void Start()
+    {
+        player = PlayerManager.instance.player;
+    }
+
+    protected virtual void Update()
+    {
+        cooldownTimer -= Time.deltaTime;
+    }
+
+    public virtual bool CanUseSkill()
+    {
+
+        if (cooldownTimer < 0)
+        {
+            UseSkill();
+            cooldownTimer = cooldown;
+            return true;
+        }
+
+        Debug.Log("Skill is on cooldown");
+        return false;
+    }
+
+    public virtual void UseSkill()
+    {
+
+    }
+
+    public virtual Transform FindClosestEnemy(Transform _checkTransform)
+    {
+
+        Collider2D[] colliders = Physics2D.OverlapCircleAll(_checkTransform.position, 25);
+
+        float closestDistance = Mathf.Infinity;
+
+        Transform closestEnemy = null;
+
+        foreach (var hit in colliders)
+        {
+            if (hit.GetComponent<Enemy>() != null)
+            {
+                float distanceToEnemy = Vector2.Distance(_checkTransform.position, hit.transform.position);
+
+                if (distanceToEnemy < closestDistance)
+                {
+                    closestDistance = distanceToEnemy;
+                    closestEnemy = hit.transform;
+                }
+
+            }
+        }
+
+        return closestEnemy;
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\SkillManager.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class SkillManager : MonoBehaviour
+{
+    public static SkillManager instance;
+    
+    public Dash_Skill dash {  get; private set; }
+    public Clone_Skill clone { get; private set; }
+    public Sword_Skill sword { get; private set; }
+    public Blackhole_Skill blackhole { get; private set; }
+    public Crystal_Skill crystal { get; private set; }
+    
+
+    private void Awake()
+    {
+        if(instance != null)
+        {
+            Destroy(instance.gameObject);
+        }
+        else
+        {
+            instance = this;
+        }
+    }
+    private void Start()
+    {
+        dash = GetComponent<Dash_Skill>();
+        clone = GetComponent<Clone_Skill>();
+        sword = GetComponent<Sword_Skill>();
+        blackhole = GetComponent<Blackhole_Skill>();
+        crystal = GetComponent<Crystal_Skill>();
+    }
+
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\Sword_Skill.cs
+using System;
+using System.Threading;
+using UnityEngine;
+
+public enum SwordType
+{
+    Regular,
+    Bounce,
+    Pierce,
+    Spin,
+}
+
+public class Sword_Skill : Skill
+{
+    public SwordType swordType = SwordType.Regular;
+
+    [Header("Bounce Info")]
+    [SerializeField] private int bounceAmount;
+    [SerializeField] private float bounceGravity;
+    [SerializeField] private int bounceSpeed;
+
+    [Header("Pirece Info")]
+    [SerializeField] private int pireceAmount;
+    [SerializeField] private float pireceGravity;
+
+    [Header("Spin Info")]
+    [SerializeField] private float hitCooldown = .35f;
+    [SerializeField] private float maxTravelDistance = 7;
+    [SerializeField] private float spinDuration = 2;
+    [SerializeField] private float spinGravity = 1;
+
+    [Header("Skill Info")]
+    [SerializeField] private GameObject swordPrefab;
+    [SerializeField] private Vector2 launchForce;
+    [SerializeField] private float swordGravity;
+    [SerializeField] private float returnSpeed;
+    [SerializeField] private float freezeTimeDuration;
+
+    private Vector2 finalDir;
+
+    [Header("Aim Dots")]
+    [SerializeField] private GameObject dotPrefab;
+    [SerializeField] private int numberOfDots;
+    [SerializeField] private float spaceBetweenDots;
+    [SerializeField] private Transform dotsParent;
+
+    private GameObject[] dots;
+
+    protected override void Start()
+    {
+        base.Start();
+
+        GenerateDots();
+
+        SetupGravity();
+    }
+
+    private void SetupGravity()
+    {
+        switch (swordType)
+        {
+            case SwordType.Bounce:
+                swordGravity = bounceGravity;
+                break;
+            case SwordType.Pierce:
+                swordGravity = pireceGravity;
+                break;
+            case SwordType.Spin:
+                swordGravity = spinGravity;
+                break;
+        }
+    }
+
+    protected override void Update()
+    {
+        if (Input.GetKeyUp(KeyCode.Mouse1))
+        {
+            finalDir = new Vector2(AimDirection().normalized.x * launchForce.x, AimDirection().normalized.y * launchForce.y);
+        }
+
+        if (Input.GetKey(KeyCode.Mouse1))
+        {
+            for (int i = 0; i < dots.Length; i++)
+            {
+                dots[i].transform.position = DotsPosition(i * spaceBetweenDots);
+            }
+        }
+
+    }
+
+    public void CreatSword()
+    {
+        GameObject newSword = Instantiate(swordPrefab, player.transform.position, transform.rotation);
+        Sword_Skill_Controller newSwordScript = newSword.GetComponent<Sword_Skill_Controller>();
+
+        if(swordType == SwordType.Bounce)
+        {
+            newSwordScript.SetupBounce(true,bounceAmount,bounceSpeed);
+        }
+        else if(swordType == SwordType.Pierce)
+        {
+            newSwordScript.SetupPirece(pireceAmount);
+        }
+        else if(swordType == SwordType.Spin)
+        {
+            newSwordScript.SetupSpin(true, maxTravelDistance, hitCooldown, spinDuration);
+        }
+
+        newSwordScript.SetupSword(finalDir, swordGravity, player, freezeTimeDuration,returnSpeed);
+
+        player.AssignNewSword(newSword);
+
+        DotsActive(false);
+    }
+
+    #region Aim region
+    public Vector2 AimDirection()
+    {
+        Vector2 playerPosition = player.transform.position;
+        Vector2 mousePositon = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector2 direction = mousePositon - playerPosition;
+
+        return direction;
+    }
+
+    public void DotsActive(bool _isActive)
+    {
+        for (int i = 0; i < dots.Length; i++)
+        {
+            dots[i].SetActive(_isActive);
+        }
+    }
+
+    public void GenerateDots()
+    {
+        dots = new GameObject[numberOfDots];
+        for (int i = 0; i < numberOfDots; i++)
+        {
+            dots[i] = Instantiate(dotPrefab, player.transform.position, Quaternion.identity, dotsParent);
+            dots[i].SetActive(false);
+        }
+    }
+
+    private Vector2 DotsPosition(float t)
+    {
+        Vector2 position = (Vector2)player.transform.position + new Vector2(
+            AimDirection().normalized.x * launchForce.x,
+            AimDirection().normalized.y * launchForce.y) * t + .5f * (Physics2D.gravity * swordGravity) * (t * t);
+
+        return position;
+    }
+    #endregion
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\Skill_Controller\Blackhole_Hotkey_Controller.cs
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+
+public class Blackhole_Hotkey_Controller : MonoBehaviour
+{
+    private SpriteRenderer sr;
+    private KeyCode myHotKey;
+    private TextMeshProUGUI myText;
+
+    private Transform myEnemy;
+    private Blackhole_Skill_Controller blackHole;
+
+    public void SetupHotKey(KeyCode _myHotKey,Transform _myEnemy, Blackhole_Skill_Controller _blackHole)
+    {
+        sr = GetComponent<SpriteRenderer>();
+        myText = GetComponentInChildren<TextMeshProUGUI>();
+
+        myEnemy = _myEnemy;
+        blackHole = _blackHole;
+
+        myHotKey = _myHotKey;
+        myText.text = _myHotKey.ToString();
+    }
+
+    private void Update()
+    {
+        if (Input.GetKeyDown(myHotKey))
+        {
+            blackHole.AddEnemyToList(myEnemy);
+
+            myText.color = Color.clear;
+            sr.color = Color.clear;
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\Skill_Controller\Blackhole_Skill_Controller.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Blackhole_Skill_Controller : MonoBehaviour
+{
+    [SerializeField] private GameObject hotKeyPrefab;
+    [SerializeField] private List<KeyCode> keyCodeList;
+
+    private float maxsize;
+    private float growSpeed;
+    private float shrinkSpeed;
+    private float blackholeTimer;
+
+    private bool canGrow = true;
+    private bool canShrink;
+    private bool canCreatHotKey = true;
+    private bool canAttack;
+    private bool canDisappear = true;
+    
+    private int amountOfAttacks = 4;
+    private float cloneAttackCooldown = .2f;
+    private float cloneAttackTimer;
+
+    private List<Transform> targets = new List<Transform>();
+    private List<GameObject> creatHotKey = new List<GameObject>();
+
+    public bool playerCanExitState {  get; private set; }
+
+
+    public void SetupBlackhole(float _maxsize, float _growSpeed, float _shrinkSpeed, int _amountOfAttacks, float _cloneAttackCooldown, float _blackholeDuration)
+    {
+        maxsize = _maxsize;
+        growSpeed = _growSpeed;
+        shrinkSpeed = _shrinkSpeed;
+        amountOfAttacks = _amountOfAttacks;
+        cloneAttackCooldown = _cloneAttackCooldown;
+        blackholeTimer = _blackholeDuration;
+    }
+
+    private void Update()
+    {
+        cloneAttackTimer -= Time.deltaTime;
+        blackholeTimer -= Time.deltaTime;
+
+        if(blackholeTimer < 0)
+        {
+            blackholeTimer = Mathf.Infinity;
+
+            if(targets.Count > 0)
+            {
+                ReleaseCloneAttack();
+            }
+            else
+            {
+                FinishBlackholeAbility();
+            }
+        }
+
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            ReleaseCloneAttack();
+        }
+
+        CloneAttackLogic();
+
+        if (canGrow && !canShrink)
+        {
+            transform.localScale = Vector2.Lerp(transform.localScale, new Vector2(maxsize, maxsize), growSpeed * Time.deltaTime);
+        }
+
+        if (canShrink)
+        {
+            transform.localScale = Vector2.Lerp(transform.localScale, new Vector2(-1, -1), shrinkSpeed * Time.deltaTime);
+
+            if (transform.localScale.x < 0)
+            {
+                Destroy(gameObject);
+                canShrink = false;
+            }
+        }
+    }
+
+    private void ReleaseCloneAttack()
+    {
+        if(targets.Count <= 0)
+            return;
+
+        DestroyHotKeys();
+        canAttack = true;
+        canCreatHotKey = false;
+
+        if(canDisappear)
+        {
+            canDisappear = false;
+            PlayerManager.instance.player.MakeTransparent(true);
+        }
+    }
+
+    private void CloneAttackLogic()
+    {
+        if (cloneAttackTimer < 0 && canAttack  && amountOfAttacks > 0)
+        {
+            cloneAttackTimer = cloneAttackCooldown;
+
+            int randomIndex = Random.Range(0, targets.Count);
+
+            float xOffset;
+
+            if (Random.Range(0, 100) > 50)
+                xOffset = 2;
+            else
+                xOffset = -2;
+
+            SkillManager.instance.clone.CreatClone(targets[randomIndex], new Vector3(xOffset, 0));
+            amountOfAttacks--;
+
+            if (amountOfAttacks <= 0)
+            {
+                Invoke("FinishBlackholeAbility", 1f);
+            }
+        }
+    }
+
+    private void FinishBlackholeAbility()
+    {
+        playerCanExitState = true;
+        canAttack = false;
+        canShrink = true;
+
+        DestroyHotKeys();
+    }
+
+    private void DestroyHotKeys()
+    {
+        if(creatHotKey.Count <= 0)
+            return;
+
+        for (int i = 0; i < creatHotKey.Count; i++)
+        {
+            Destroy(creatHotKey[i]);
+        }
+    }
+
+    private void OnTriggerEnter2D(Collider2D collision)
+    {
+        if(collision.GetComponent<Enemy>() != null)
+        {
+            collision.GetComponent<Enemy>().FreezeTime(true);
+            CreatHotKey(collision);
+
+        }
+    }
+
+    private void OnTriggerExit2D(Collider2D collision)
+    {
+        if(collision.GetComponent<Enemy>() != null)
+            collision.GetComponent<Enemy>().FreezeTime(false);
+    }
+
+    private void CreatHotKey(Collider2D collision)
+    {
+        if(keyCodeList.Count <= 0)
+        {
+            Debug.LogWarning("Not enough hot keys in a key code list");
+            return;
+        }
+
+        if(!canCreatHotKey)
+            return;
+
+        GameObject newHotKey = Instantiate(hotKeyPrefab, collision.transform.position + new Vector3(0, 2), Quaternion.identity);
+        creatHotKey.Add(newHotKey);
+
+        KeyCode choosenKey = keyCodeList[Random.Range(0, keyCodeList.Count)];
+        keyCodeList.Remove(choosenKey);
+
+        Blackhole_Hotkey_Controller newHotKeyScript = newHotKey.GetComponent<Blackhole_Hotkey_Controller>();
+
+        newHotKeyScript.SetupHotKey(choosenKey, collision.transform, this);
+    }
+
+    public void AddEnemyToList(Transform _enemyTransform) => targets.Add(_enemyTransform);
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\Skill_Controller\Clone_Skill_Controller.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
+
+public class Clone_Skill_Controller : MonoBehaviour
+{
+    private SpriteRenderer sr;
+    private Animator anim;
+    [SerializeField] private float colorLosingSpeed;
+
+    private float cloneTimer;
+    [SerializeField] private Transform attackCheck;
+    [SerializeField] private float attackCheckRadius = .8f;
+    private Transform closestEnemy;
+
+
+
+    private void Awake()
+    {
+        sr = GetComponent<SpriteRenderer>();
+        anim = GetComponent<Animator>();
+    }
+
+    private void Update()
+    {
+        cloneTimer -= Time.deltaTime;
+
+        if(cloneTimer < 0 )
+        {
+            sr.color = new Color(1, 1, 1, sr.color.a - (Time.deltaTime * colorLosingSpeed));
+
+            if(sr.color.a <= 0)
+            {
+                Destroy(gameObject);
+            }
+        }
+    }
+
+    public void SetupClone(Transform _newTransform,float _cloneDuration,bool _canAttack, Vector3 _offset, Transform _closestEnemy)
+    {
+        if (_canAttack)
+        {
+            anim.SetInteger("AttackNumber", Random.Range(1, 4));
+        }
+
+        transform.position = _newTransform.position + _offset;
+        cloneTimer = _cloneDuration;
+
+        closestEnemy = _closestEnemy;
+
+        FaceClosestTarget();
+    }
+
+    private void AnimationTrigger()
+    {
+        cloneTimer = -.1f;
+    }
+
+    private void AttackTrigger()
+    {
+        Collider2D[] colliders = Physics2D.OverlapCircleAll(attackCheck.position, attackCheckRadius);
+
+        foreach (var hit in colliders)
+        {
+            if (hit.GetComponent<Enemy>() != null)
+                hit.GetComponent<Enemy>().Damage();
+        }
+    }
+
+    private void FaceClosestTarget()
+    {
+        
+
+        if(closestEnemy != null)
+        {
+            if(transform.position.x > closestEnemy.position.x)
+            {
+                transform.Rotate(0, 180, 0);
+            }
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\Skill_Controller\Crystal_Skill_Controller.cs
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Crystal_Skill_Controller : MonoBehaviour
+{
+    private Animator anim => GetComponent<Animator>();
+    private CircleCollider2D cd => GetComponent<CircleCollider2D>();
+
+    private float crystalExitTimer;
+
+    private bool canExplode;
+    private bool canMove;
+    private float moveSpeed;
+
+    private bool canGrow;
+    private float growSpeed = 5;
+
+    private Transform cloestEnemy;
+
+    public void SetupCrystal(float _crystalDuration, bool _canExplode, bool _canMove, float _moveSpeed, Transform _closestEnemy)
+    {
+        crystalExitTimer = _crystalDuration;
+        canExplode = _canExplode;
+        canMove = _canMove;
+        moveSpeed = _moveSpeed;
+        cloestEnemy = _closestEnemy;
+    }
+
+    private void Update()
+    {
+        crystalExitTimer -= Time.deltaTime;
+
+        if(crystalExitTimer < 0)
+        {
+            FinishCrystal();
+        }
+
+        if(canMove)
+        {
+            transform.position = Vector2.MoveTowards(transform.position, cloestEnemy.transform.position, moveSpeed * Time.deltaTime);
+
+            if(Vector2.Distance(transform.position, cloestEnemy.transform.position) < 1)
+            {
+                canMove = false;
+                FinishCrystal();
+            }
+        }
+
+        if(canGrow)
+        {
+            transform.localScale = Vector2.Lerp(transform.localScale, new Vector2(3, 3), growSpeed * Time.deltaTime);
+        }
+    }
+
+    public void FinishCrystal()
+    {
+        if (canExplode)
+        {
+            canGrow = true;
+            anim.SetTrigger("Explode");
+        }
+        else
+        {
+            SelfDestroy();
+        }
+    }
+
+    public void SelfDestroy() => Destroy(gameObject);
+
+    private void CrystalExplodeTrigger()
+    {
+        Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, cd.radius);
+
+        foreach (var hit in colliders)
+        {
+            if (hit.GetComponent<Enemy>() != null)
+                hit.GetComponent<Enemy>().Damage();
+        }
+    }
+}
+
+
+// ==========================================
+
+
+C:\1\project\RPG\Assets\Script\Skill\Skill_Controller\Sword_Skill_Controller.cs
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Sword_Skill_Controller : MonoBehaviour
+{
+    private Animator anim;
+    private Rigidbody2D rb;
+    private CircleCollider2D cd;
+    private Player player;
+
+    private bool canRotate = true;
+    private bool isReturning;
+
+    private float freezeTimeDuratiom;
+    private float returnSpeed;
+
+    [Header("Pirece Info")]
+    private int pireceAmount;
+
+    [Header("Bounce Info")]
+    private int bounceSpeed;
+    private bool isBouncing;
+    private int bounceAmount;
+    private List<Transform> EnemyTarget;
+    private int targetIndex;
+
+    [Header("Spin Info")]
+    private float maxTravelDistance;
+    private float spinDuration;
+    private float spinTimer;
+    private bool wasStopped;
+    private bool isSpinning;
+    private float spinDirection;
+
+    private float hitTimer;
+    private float hitCooldown;
+
+
+    private void Awake()
+    {
+        anim = GetComponentInChildren<Animator>();
+        rb = GetComponent<Rigidbody2D>();
+        cd = GetComponent<CircleCollider2D>();
+    }
+
+    private void DestroyMe()
+    {
+        Destroy(gameObject);
+    }
+
+    public void SetupSword(Vector2 _dir, float _gravityScale, Player _player, float _freezeTimeDuration, float _returnSpeed)
+    {
+        player = _player;
+        freezeTimeDuratiom = _freezeTimeDuration;
+        returnSpeed = _returnSpeed;
+
+        rb.velocity = _dir;
+        rb.gravityScale = _gravityScale;
+
+        if(pireceAmount <= 0) 
+            anim.SetBool("Rotation", true);
+        
+        spinDirection = Mathf.Clamp(rb.velocity.x, -1, 1);
+
+        Invoke("DestroyMe", 7);
+
+    }
+    public void SetupBounce(bool _isBouncing, int _amountOfBounce, int _bounceSpeed)
+    {
+        isBouncing = _isBouncing;
+        bounceAmount = _amountOfBounce;
+        bounceSpeed = _bounceSpeed;
+
+        EnemyTarget = new List<Transform>();
+    }
+
+
+    public void SetupPirece(int _pierceAmount)
+    {
+        pireceAmount = _pierceAmount;
+    }
+
+    public void SetupSpin(bool _isSpinning, float _maxTravelDistance, float _hitCooldown, float _spinDuration)
+    {
+        isSpinning = _isSpinning;
+        maxTravelDistance = _maxTravelDistance;
+        hitCooldown = _hitCooldown;
+        spinDuration = _spinDuration;
+    }
+
+    public void ReturnSword()
+    {
+        rb.constraints = RigidbodyConstraints2D.FreezeAll;
+        transform.parent = null;
+        isReturning = true;
+    }
+
+    private void Update()
+    {
+        if (canRotate)
+        {
+            transform.right = rb.velocity;
+        }
+
+        if (isReturning)
+        {
+            transform.position = Vector2.MoveTowards(transform.position, player.transform.position, returnSpeed * Time.deltaTime);
+
+            if (Vector2.Distance(transform.position, player.transform.position) < 1)
+            {
+                player.CatchTheSword();
+            }
+        }
+
+        BounceLogic();
+        SpinLogic();
+    }
+
+    private void SpinLogic()
+    {
+        if (isSpinning)
+        {
+            if (Vector2.Distance(player.transform.position, transform.position) > maxTravelDistance && wasStopped)
+            {
+                StopWhenSpinning();
+            }
+
+            if (wasStopped)
+            {
+                spinTimer -= Time.deltaTime;
+
+                transform.position = Vector2.MoveTowards(transform.position, new Vector2(transform.position.x + spinDirection, transform.position.y), 1.5f * Time.deltaTime);
+
+                if (spinTimer < 0)
+                {
+                    isReturning = true;
+                    isSpinning = false;
+                }
+
+                hitTimer -= Time.deltaTime;
+
+                if (hitTimer < 0)
+                {
+                    hitTimer = hitCooldown;
+
+                    Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, 1);
+
+                    foreach (var hit in colliders)
+                    {
+                        if (hit.GetComponent<Enemy>() != null)
+                            swordSkillDamage(hit.GetComponent<Enemy>());
+                    }
+                }
+            }
+        }
+    }
+
+    private void StopWhenSpinning()
+    {
+        wasStopped = true;
+        rb.constraints = RigidbodyConstraints2D.FreezePosition;
+        spinTimer = spinDuration;
+    }
+
+    private void BounceLogic()
+    {
+        if (isBouncing && EnemyTarget.Count > 0)
+        {
+            transform.position = Vector2.MoveTowards(transform.position, EnemyTarget[targetIndex].position, bounceSpeed * Time.deltaTime);
+
+            if (Vector2.Distance(transform.position, EnemyTarget[targetIndex].position) < .1f)
+            {
+                swordSkillDamage(EnemyTarget[targetIndex].GetComponent<Enemy>());
+
+                targetIndex++;
+                bounceAmount--;
+
+                if (bounceAmount <= 0)
+                {
+                    isBouncing = false;
+                    isReturning = true;
+                }
+
+                if (targetIndex >= EnemyTarget.Count)
+                    targetIndex = 0;
+            }
+        }
+    }
+
+    private void OnTriggerEnter2D(Collider2D collision)
+    {
+
+        if (isReturning)
+            return;
+
+        if (collision.GetComponent<Enemy>() != null)
+        {
+            Enemy enemy = collision.GetComponent<Enemy>();
+
+            swordSkillDamage(enemy);
+        }
+
+        SetupTargetsForBounce(collision);
+
+        StuckInto(collision);
+    }
+
+    private void swordSkillDamage(Enemy enemy)
+    {
+        enemy.Damage();
+        enemy.StartCoroutine("FreezeTimerFor", freezeTimeDuratiom);
+    }
+
+    private void SetupTargetsForBounce(Collider2D collision)
+    {
+        if (collision.GetComponent<Enemy>() != null)
+        {
+            if (isBouncing && EnemyTarget.Count <= 0)
+            {
+                Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, 20);
+
+                foreach (var hit in colliders)
+                {
+                    if (hit.GetComponent<Enemy>() != null)
+                        EnemyTarget.Add(hit.transform);
+                }
+            }
+        }
+    }
+
+    private void StuckInto(Collider2D collision)
+    {
+        if (pireceAmount > 0 && collision.GetComponent<Enemy>() != null)
+        {
+            pireceAmount--;
+            return;
+        }
+
+        if (isSpinning)
+        {
+            StopWhenSpinning();
+            return;
+        }
+
+        canRotate = false;
+        cd.enabled = false;
+
+        rb.isKinematic = true;
+        rb.constraints = RigidbodyConstraints2D.FreezeAll;
+
+        if (isBouncing && EnemyTarget.Count > 0)
+            return;
+
+        anim.SetBool("Rotation", false);
+        transform.parent = collision.transform;
+    }
+}
+
+
+// ==========================================
+
+
