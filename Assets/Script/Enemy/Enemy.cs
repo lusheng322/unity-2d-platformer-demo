@@ -14,10 +14,9 @@ public class Enemy : Entity
 
     [Header("Health")]
     [SerializeField] private int maxHealth = 5;                  // 血量（被打几下死）
-    [SerializeField] private float deathDestroyDelay = 1.5f;     // 死亡动画播完后的销毁延时（按你的动画长度调）
-    [SerializeField] private string deathBoolName = "Death";     // Enemy_AC 动画状态机里的布尔参数名
+    [SerializeField] private float deathDestroyDelay = 1.5f;     // 死亡动画播完多久销毁，按动画长度填
 
-    private int currentHealth = -1;                              // -1 = 还没初始化（首次受伤时再初始化，避免依赖 Start 的调用顺序）
+    private int currentHealth = -1;                              // -1 表示还没初始化，首次受伤时才初始化，免得依赖 Start 顺序
     private bool isDead;
 
     [Header("Move Info")]
@@ -45,16 +44,13 @@ public class Enemy : Entity
     {
         base.Update();
 
-        if (isDead)     // 死后不再跑 AI，等死亡动画播完由 Die() 负责销毁
+        if (isDead)     // 死了就别跑 AI 了，等 Die() 延时销毁
             return;
 
         stateMachine.currentState.Update();
     }
 
-    /// <summary>
-    /// 受伤：先走基类的闪白 / 击退，再扣血；血量归零后播放死亡动画并延时销毁。
-    /// 死亡后不再接受伤害，避免同一个敌人被反复触发死亡逻辑。
-    /// </summary>
+    // 死了就不再吃伤害，免得反复触发死亡逻辑
     public override void Damage()
     {
         if (isDead)
@@ -71,42 +67,28 @@ public class Enemy : Entity
             Die();
     }
 
-    private void Die()
+    // 停移动 + 延时销毁。死亡动画交给子类的死亡状态播（见 SkeletonDeathState），
+    // 这样死亡也是状态机里的一个状态，不用在基类里直接动 Animator
+    protected virtual void Die()
     {
         isDead = true;
 
-        // 万一死在黑洞的冻结里：FreezeTime(true) 会把 anim.speed 设成 0，
-        // 这里先解除冻结，否则死亡动画不会播放。
+        // 死在黑洞冻结里的话 anim.speed 是 0，先解冻，不然死亡动画不会播
         FreezeTime(false);
 
         if (rb != null)
             rb.velocity = Vector2.zero;
 
-        if (HasAnimatorBool(deathBoolName))
-            anim.SetBool(deathBoolName, true);
-        else
-            Debug.LogWarning($"Enemy: 动画状态机里没有名为 \"{deathBoolName}\" 的 Bool 参数，本次跳过死亡动画，{deathDestroyDelay} 秒后直接销毁。");
-
         Destroy(gameObject, deathDestroyDelay);
-    }
-
-    /// 检查 Animator 上是否有指定名字的 Bool 参数（没有就跳过死亡动画，保证不会报错）
-    private bool HasAnimatorBool(string _name)
-    {
-        if (anim == null || anim.runtimeAnimatorController == null)
-            return false;
-
-        foreach (AnimatorControllerParameter p in anim.parameters)
-        {
-            if (p.type == AnimatorControllerParameterType.Bool && p.name == _name)
-                return true;
-        }
-
-        return false;
     }
 
     public virtual void FreezeTime(bool _timeFrozen)
     {
+        // 死了就不再接受冻结：剑技能（弹射/旋转）会重复命中，死后再冻一次 anim.speed 就永远是 0，
+        // 死亡动画播不出来。解冻要放过去，Die() 就是靠它把 anim.speed 恢复成 1 的
+        if (isDead && _timeFrozen)
+            return;
+
         if (_timeFrozen)
         {
             moveSpeed = 0;
@@ -119,8 +101,7 @@ public class Enemy : Entity
         }
     }
 
-    // 改成 public：让武器/技能可以用 enemy.StartCoroutine(enemy.FreezeTimerFor(t)) 直接调用，
-    // 而不用字符串版 StartCoroutine("FreezeTimerFor", t)
+    // 改 public 是为了让武器直接 StartCoroutine(enemy.FreezeTimerFor(t))，别用字符串版
     public virtual IEnumerator FreezeTimerFor(float _seconds)
     {
         FreezeTime(true);

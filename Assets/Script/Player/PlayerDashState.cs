@@ -2,11 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// 冲刺（闪避）状态。
-/// 现在闪避会在**起点位置**留下一个水晶（原教程里这一步是留下分身），
-/// 水晶会根据 Crystal_Skill 的配置自动追踪并攻击附近的敌人。
-/// </summary>
+// 冲刺状态。闪避在起点留一个水晶（原来这里留的是分身）
 public class PlayerDashState : PlayerState
 {
     public PlayerDashState(PlayerStateMachine _stateMachine, Player _player, string _animBoolName) : base(_stateMachine, _player, _animBoolName)
@@ -17,7 +13,7 @@ public class PlayerDashState : PlayerState
     {
         base.Enter();
 
-        // 闪避起点生成水晶（替代之前的分身）
+        // 闪避起点生成水晶
         player.skill.crystal.CreatCrystal(player.transform.position);
 
         stateTimer = player.dashDuration;

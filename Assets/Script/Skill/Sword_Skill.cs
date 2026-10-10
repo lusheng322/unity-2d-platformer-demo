@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using TMPro;
 using UnityEngine;
 
 public enum SwordType
@@ -73,6 +74,9 @@ public class Sword_Skill : Skill
 
     protected override void Update()
     {
+        DebugSwitchSwordType();
+        UpdateModeHint();
+
         if (Input.GetKeyUp(KeyCode.Mouse1))
         {
             finalDir = new Vector2(AimDirection().normalized.x * launchForce.x, AimDirection().normalized.y * launchForce.y);
@@ -86,6 +90,104 @@ public class Sword_Skill : Skill
             }
         }
 
+    }
+
+    // 录 demo 用的调试快捷键：全屏下改不了 Inspector，直接按键切投掷剑模式
+    // F1 普通 / F2 弹射 / F3 穿透 / F4 旋转，想换键就改下面的 KeyCode
+    private void DebugSwitchSwordType()
+    {
+        SwordType? next = null;
+
+        if (Input.GetKeyDown(KeyCode.F1)) next = SwordType.Regular;
+        else if (Input.GetKeyDown(KeyCode.F2)) next = SwordType.Bounce;
+        else if (Input.GetKeyDown(KeyCode.F3)) next = SwordType.Pierce;
+        else if (Input.GetKeyDown(KeyCode.F4)) next = SwordType.Spin;
+
+        if (next == null)
+            return;
+
+        if (next.Value != swordType)
+        {
+            swordType = next.Value;
+            SetupGravity();     // 换模式必须重算重力，不然还是上一个模式的手感
+        }
+
+        ShowModeHint();
+
+        Debug.Log($"投掷剑模式：{swordType}（下一次投掷生效）");
+    }
+
+    // 屏幕左上角的模式小字（录 demo 用，代码生成，不用做预制体）
+    // 文本故意用英文：项目里只有拉丁字体，中文会显示成方块
+    private TextMeshProUGUI modeHint;
+    private float modeHintTimer;
+    private const float modeHintHoldTime = 2f;      // 显示 2 秒后开始淡出
+    private const float modeHintFadeSpeed = 2f;
+
+    private void ShowModeHint()
+    {
+        if (modeHint == null)
+            modeHint = CreateModeHint();
+
+        modeHint.text = "SWORD: " + SwordTypeLabel();
+        modeHint.color = new Color(1f, 1f, 1f, 1f);
+        modeHint.gameObject.SetActive(true);
+        modeHintTimer = modeHintHoldTime;
+    }
+
+    private TextMeshProUGUI CreateModeHint()
+    {
+        GameObject canvasGo = new GameObject("SwordModeHint");
+        Canvas canvas = canvasGo.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 100;              // 压在别的 UI 上面
+
+        GameObject textGo = new GameObject("Text");
+        textGo.transform.SetParent(canvasGo.transform, false);
+
+        TextMeshProUGUI text = textGo.AddComponent<TextMeshProUGUI>();
+        text.fontSize = 40;
+        text.alignment = TextAlignmentOptions.TopLeft;
+        text.raycastTarget = false;
+
+        RectTransform rt = text.rectTransform;
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(0f, 1f);
+        rt.pivot = new Vector2(0f, 1f);
+        rt.anchoredPosition = new Vector2(30f, -30f);
+        rt.sizeDelta = new Vector2(700f, 80f);
+
+        return text;
+    }
+
+    private void UpdateModeHint()
+    {
+        if (modeHint == null || !modeHint.gameObject.activeSelf)
+            return;
+
+        if (modeHintTimer > 0f)
+        {
+            modeHintTimer -= Time.deltaTime;
+            return;
+        }
+
+        Color c = modeHint.color;
+        c.a -= modeHintFadeSpeed * Time.deltaTime;
+        modeHint.color = c;
+
+        if (c.a <= 0f)
+            modeHint.gameObject.SetActive(false);
+    }
+
+    private string SwordTypeLabel()
+    {
+        switch (swordType)
+        {
+            case SwordType.Bounce: return "BOUNCE";
+            case SwordType.Pierce: return "PIERCE";
+            case SwordType.Spin: return "SPIN";
+            default: return "REGULAR";
+        }
     }
 
     public void CreatSword()

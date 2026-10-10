@@ -3,33 +3,19 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
-/// <summary>
-/// 黑洞技能的运行时控制器（挂在 Blackhole 预制体上）。
-///
-/// 设计流程：
-///   1. 展开：把进入范围的敌人冻结（FreezeTime）并记入 targets（敌人离开则移出并解冻）；
-///   2. 就绪：黑洞**长到接近最大尺寸**后进入"就绪"，玩家头顶出现 "R" 提示；
-///   3. 发动：就绪阶段再按一次 R → 分身依次对 targets 中每个敌人各攻击一次；
-///   4. 收尾：**等所有分身攻击结束后**才收尾（解除敌人冻结、黑洞收缩销毁、玩家恢复显形）；
-///   5. 取消：就绪阶段在 readyWaitTime 秒内没有按 R → 直接结束技能、不发动攻击（把选择权留给玩家）。
-///
-/// 按键隔离：R 既用于第一段（地面起手）又用于第二段（黑洞内发动），通过三层隔离避免冲突——
-///   · 第一段只在 PlayerGroundedState 里监听；第二段只在 isReady 阶段监听（此时玩家处于 PlayerBlackholeState）；
-///   · 就绪之前本控制器完全不读输入；
-///   · Blackhole_Skill.IsActive() 让地面上的 R 在黑洞生效期间不再重复起手。
-/// 因此黑洞阶段除了 R 之外的其他按键都不会有任何效果。
-/// </summary>
+// 黑洞运行时控制：进范围的敌人冻结并记进 targets，长到接近 maxsize 后头顶出 R，再按一次 R 逐个放分身打；
+// 就绪超时就直接取消不发动。起手 R 由 PlayerGroundedState 管，二段 R 只在这里 isReady 时读，不会抢。
 public class Blackhole_Skill_Controller : MonoBehaviour
 {
     [Header("Ready Hint（可选）")]
-    [SerializeField] private GameObject readyHintPrefab;    // 自定义提示预制体（留空则用代码生成一个"R"）
-    [SerializeField] private float readyWaitTime = 2.5f;    // 就绪后等待按键的时限；超时则取消本次技能
-    [SerializeField] private float readyHintHeight = 2f;    // 提示显示在玩家头顶的高度
-    [SerializeField] private float hintWorldScale = 0.01f;  // 提示的整体缩放（世界空间 Canvas 用）
-    [SerializeField] private string readyHintSortingLayer = "Ground";   // 提示所在的 Sorting Layer（默认 Ground：要盖住背景）
+    [SerializeField] private GameObject readyHintPrefab;    // 不填就用代码生成一个 R
+    [SerializeField] private float readyWaitTime = 2.5f;    // 就绪后等按键的时限，超时取消
+    [SerializeField] private float readyHintHeight = 2f;    // 提示挂在头顶多高
+    [SerializeField] private float hintWorldScale = 0.01f;  // 世界空间 Canvas 的缩放
+    [SerializeField] private string readyHintSortingLayer = "Ground";   // 得盖住背景，所以放 Ground 层
 
     [Header("收尾")]
-    [SerializeField] private float finishWaitLimit = 6f;    // 等待分身全部结束的安全上限（秒），防止意外卡住
+    [SerializeField] private float finishWaitLimit = 6f;    // 等分身结束的安全上限，防卡死
 
     private float maxsize;
     private float growSpeed;
@@ -42,11 +28,11 @@ public class Blackhole_Skill_Controller : MonoBehaviour
 
     private bool canGrow = true;
     private bool canShrink;
-    private bool canAttack;                 // 正在爆发中
-    private bool isReady;                   // 已就绪，等待玩家再按一次 R
+    private bool canAttack;                 // 正在爆发
+    private bool isReady;                   // 已就绪，等玩家再按一次 R
     private bool canDisappear = true;
 
-    private bool waitClonesFinished;        // 分身已全部放出，正在等它们打完
+    private bool waitClonesFinished;        // 分身放完了，在等它们打完
     private float finishWaitTimer;
 
     private int targetIndex;
@@ -55,7 +41,7 @@ public class Blackhole_Skill_Controller : MonoBehaviour
     private readonly List<GameObject> spawnedClones = new List<GameObject>();
     private GameObject readyHintInstance;
 
-    /// 玩家是否可以退出黑洞状态（由玩家状态机轮询）
+    // 玩家能不能退出黑洞状态，状态机每帧来轮询
     public bool playerCanExitState { get; private set; }
 
     public void SetupBlackhole(float _maxsize, float _growSpeed, float _shrinkSpeed, float _blackholeDuration)
@@ -71,14 +57,11 @@ public class Blackhole_Skill_Controller : MonoBehaviour
         cloneAttackTimer -= Time.deltaTime;
         blackholeTimer -= Time.deltaTime;
 
-        // 1) 展开完成 → 进入就绪。
-        //    判定用"实际尺寸长到接近 maxsize"，而不是等 blackholeDuration 走完：
-        //    这样提示出现的时间点和玩家肉眼看到的"完全展开"是一致的；
-        //    blackholeDuration 作为兜底（万一 growSpeed 配得太小也能进入就绪）。
+        // 按实际尺寸判断展开完成，提示出现的时间和肉眼看到的展开一致
         if (!isReady && !canAttack && !canShrink && !waitClonesFinished && HasFullyExpanded())
             EnterReadyState();
 
-        // 2) 就绪阶段：只监听 R；超时则取消本次技能（不发动攻击）
+        // 就绪阶段只等 R，超时就取消不发动
         if (isReady)
         {
             readyTimer -= Time.deltaTime;
@@ -94,7 +77,7 @@ public class Blackhole_Skill_Controller : MonoBehaviour
             }
         }
 
-        // 3) 等所有分身打完再收尾（finishWaitLimit 是安全上限）
+        // 等分身打完再收尾，finishWaitLimit 兜底
         if (waitClonesFinished)
         {
             finishWaitTimer -= Time.deltaTime;
@@ -107,13 +90,13 @@ public class Blackhole_Skill_Controller : MonoBehaviour
         GrowAndShrink();
     }
 
-    /// 是否已经长到接近最大尺寸（Lerp 是渐近的，所以取 90% 作为"展开完成"）
+    // Lerp 渐近永远到不了 1，所以取 90% 算展开完成
     private bool HasFullyExpanded()
     {
         return blackholeTimer < 0f || transform.localScale.x >= maxsize * .9f;
     }
 
-    /// 进入"就绪"：头顶显示 R 提示，等待玩家决定是否发动
+    // 进就绪：头顶出 R，等玩家按
     private void EnterReadyState()
     {
         isReady = true;
@@ -122,13 +105,7 @@ public class Blackhole_Skill_Controller : MonoBehaviour
         ShowReadyHint();
     }
 
-    /// <summary>
-    /// 在玩家头顶显示 "R" 提示。
-    ///
-    /// 生成方式参考原来 QTE 的做法（世界空间文字挂在头顶）：
-    /// 用世界空间 Canvas + TextMeshProUGUI，TMP 资源项目里已经有了（之前的 QTE 用的就是它）。
-    /// 如果你想用图片/精灵样式的提示，可以自己做一个世界空间预制体挂到 readyHintPrefab 上，代码会优先用它。
-    /// </summary>
+    // 世界空间 Canvas + TMP 挂头顶；挂了 readyHintPrefab 就优先用它
     private void ShowReadyHint()
     {
         if (readyHintInstance != null)
@@ -157,7 +134,7 @@ public class Blackhole_Skill_Controller : MonoBehaviour
 
         Canvas canvas = root.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
-        canvas.sortingLayerName = readyHintSortingLayer;   // 关键：和背景对齐渲染层级，否则会被背景盖住
+        canvas.sortingLayerName = readyHintSortingLayer;   // 得跟背景一个层，不然会被盖住
         canvas.sortingOrder = 100;
 
         RectTransform rootRt = root.GetComponent<RectTransform>();
@@ -180,7 +157,7 @@ public class Blackhole_Skill_Controller : MonoBehaviour
         text.color = Color.white;
         text.raycastTarget = false;
 
-        // 世界空间文字让相机看正面（避免出现镜像/背面）
+        // 让相机看正面，不然文字是反的
         Camera cam = Camera.main;
         if (cam != null)
             root.transform.rotation = cam.transform.rotation;
@@ -188,7 +165,7 @@ public class Blackhole_Skill_Controller : MonoBehaviour
         return root;
     }
 
-    /// 提示跟随玩家（不挂成子物体：角色翻转时会父子一起旋转，文字会镜像）
+    // 不挂成子物体：角色翻转会带着一起转，文字镜像
     private void FollowPlayerWithHint()
     {
         if (readyHintInstance == null || PlayerManager.instance == null || PlayerManager.instance.player == null)
@@ -197,7 +174,7 @@ public class Blackhole_Skill_Controller : MonoBehaviour
         readyHintInstance.transform.position = PlayerManager.instance.player.transform.position + Vector3.up * readyHintHeight;
     }
 
-    /// 玩家按下 R：开始对全部目标发动攻击
+    // 按下 R，开始逐个目标放分身
     private void StartReleaseAttack()
     {
         isReady = false;
@@ -213,12 +190,12 @@ public class Blackhole_Skill_Controller : MonoBehaviour
             PlayerManager.instance.player.MakeTransparent(true);
         }
 
-        // 范围内没有敌人 → 直接收尾
+        // 范围内没敌人就直接收尾
         if (targets.Count <= 0)
             FinishBlackholeAbility();
     }
 
-    /// 就绪阶段超时未按键：取消本次技能（不发动攻击、玩家保持显形）
+    // 超时没按 R，直接取消不发动
     private void CancelBlackhole()
     {
         isReady = false;
@@ -230,7 +207,7 @@ public class Blackhole_Skill_Controller : MonoBehaviour
         UnfreezeAllTargets();
     }
 
-    /// 依次对每个目标各发动一次分身攻击
+    // 每个目标各放一个分身
     private void CloneAttackLogic()
     {
         if (!canAttack || cloneAttackTimer > 0f)
@@ -241,7 +218,7 @@ public class Blackhole_Skill_Controller : MonoBehaviour
             Transform target = targets[targetIndex];
             targetIndex++;
 
-            if (target == null)     // 目标已被销毁 → 跳过
+            if (target == null)     // 目标没了就跳过
                 continue;
 
             cloneAttackTimer = cloneAttackCooldown;
@@ -252,16 +229,16 @@ public class Blackhole_Skill_Controller : MonoBehaviour
             if (newClone != null)
                 spawnedClones.Add(newClone);
 
-            return;                 // 一帧只放一个分身，节奏交给 cloneAttackCooldown
+            return;                 // 一帧只放一个，节奏靠 cloneAttackCooldown
         }
 
-        // 全部目标都放完分身了 → 不再攻击，转入"等分身结束"阶段
+        // 都放完了，转入等分身结束
         canAttack = false;
         waitClonesFinished = true;
         finishWaitTimer = finishWaitLimit;
     }
 
-    /// 之前生成的分身是否都已经消失（自己的动画播完后会自销毁）
+    // 分身播完动画会自销毁，这里顺手把空引用清掉
     private bool AllClonesFinished()
     {
         for (int i = spawnedClones.Count - 1; i >= 0; i--)
@@ -273,7 +250,7 @@ public class Blackhole_Skill_Controller : MonoBehaviour
         return spawnedClones.Count <= 0;
     }
 
-    /// 收尾：允许玩家退出状态、黑洞进入收缩、解除敌人冻结
+    // 收尾：放玩家出去、黑洞开始收缩、解冻敌人
     private void FinishBlackholeAbility()
     {
         playerCanExitState = true;
@@ -327,11 +304,7 @@ public class Blackhole_Skill_Controller : MonoBehaviour
         targets.Remove(collision.transform);
     }
 
-    /// <summary>
-    /// 解除所有目标的冻结。
-    /// 注意：黑洞被销毁时 Unity 不会补发 OnTriggerExit2D，所以必须在这里手动解冻，
-    /// 否则敌人会永久停在原地。
-    /// </summary>
+    // Destroy 时不会补发 OnTriggerExit2D，这里手动解冻，否则敌人永久冻结
     private void UnfreezeAllTargets()
     {
         foreach (Transform t in targets)

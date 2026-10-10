@@ -2,12 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// 水晶技能的数据层。
-/// 两个入口：
-///   1. UseSkill()         —— 键盘释放（目前未绑定按键，保留给后续"与水晶换位"的扩展）；
-///   2. CreatCrystal(位置) —— 闪避时调用：在"按下闪避键那一刻的位置"依次生成多个水晶。
-/// </summary>
+// 水晶数据层。UseSkill 是键盘入口（还没绑键），CreatCrystal 由闪避调用
 public class Crystal_Skill : Skill
 {
     [SerializeField] private float crystalDuraiton;
@@ -23,8 +18,8 @@ public class Crystal_Skill : Skill
 
     [Header("Multiple Crystals（闪避生成）")]
     [SerializeField] private int crystalAmount = 3;              // 一次生成几个
-    [SerializeField] private float fallbackSpawnInterval = .08f;  // SkillManager 上没配时的兜底间隔
-    [SerializeField] private int maxActiveCrystals = 12;          // 场上最多保留几个（超出只回收最旧的）
+    [SerializeField] private float fallbackSpawnInterval = .08f;  // SkillManager 没配时的兜底
+    [SerializeField] private int maxActiveCrystals = 12;          // 场上最多留几个，超了回收最旧的
 
     private readonly List<GameObject> activeCrystals = new List<GameObject>();
 
@@ -52,11 +47,7 @@ public class Crystal_Skill : Skill
         }
     }
 
-    /// <summary>
-    /// 在指定位置依次生成多个水晶（闪避时调用）。
-    /// 位置固定为传进来的点（也就是按下闪避键那一刻的位置），不做随机散布；
-    /// 多个水晶之间的时间间隔取自 SkillManager，方便在 Inspector 里对着效果微调。
-    /// </summary>
+    // 闪避时调用，位置就固定在传进来的点上，不随机散开
     public void CreatCrystal(Vector3 _position)
     {
         PruneCrystals();
@@ -70,15 +61,14 @@ public class Crystal_Skill : Skill
 
         for (int i = 0; i < amount; i++)
         {
-            // 全部生成在同一个位置（按下闪避键那一刻的坐标）
+            // 都在同一个点生成
             GameObject newCrystal = Instantiate(crystalPrefab, _position, Quaternion.identity);
             activeCrystals.Add(newCrystal);
             LimitCrystals();
 
             Crystal_Skill_Controller newCrystalScript = newCrystal.GetComponent<Crystal_Skill_Controller>();
 
-            // 先 Instantiate 到目标位置，再搜索最近的敌人 ——
-            // 否则会从预制体默认位置（世界原点）搜索，找到的目标是错的。
+            // 先摆到位置再找敌人，不然从世界原点搜会找错
             newCrystalScript.SetupCrystal(crystalDuraiton, canExplode, canMove, moveSpeed, FindClosestEnemy(newCrystal.transform));
 
             if (interval > 0f && i < amount - 1)
@@ -97,11 +87,7 @@ public class Crystal_Skill : Skill
         }
     }
 
-    /// <summary>
-    /// 超过上限时只回收"最旧的"水晶。
-    /// 这样"闪避后水晶还没打完就再闪一次"时，上一批水晶不会被立刻清掉
-    /// （之前的写法是一按闪避就清空上一批，导致水晶凭空消失）。
-    /// </summary>
+    // 超上限只清最旧的。一按闪避就清空上一批的话，水晶会凭空消失
     private void LimitCrystals()
     {
         PruneCrystals();

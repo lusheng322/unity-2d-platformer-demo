@@ -11,6 +11,7 @@ public class Enemy_Skeleton : Enemy
     public SkeletonBattleState battleState { get; private set; }
     public SkeletonAttackState attackState { get; private set; }
     public SkeletonStunnedState stunnedState { get; private set; }
+    public SkeletonDeathState deathState { get; private set; }
     #endregion
 
     protected override void Awake()
@@ -22,6 +23,7 @@ public class Enemy_Skeleton : Enemy
         battleState = new SkeletonBattleState(this, stateMachine, "Move", this);
         attackState = new SkeletonAttackState(this, stateMachine, "Attack", this);
         stunnedState = new SkeletonStunnedState(this, stateMachine, "Stunned", this);
+        deathState = new SkeletonDeathState(this, stateMachine, "Death", this);
     }
 
     protected override void Start()
@@ -48,5 +50,12 @@ public class Enemy_Skeleton : Enemy
             return true;
         }
         return false;
+    }
+
+    // 先走基类（解冻 + 停移动 + 延时销毁），再切死亡状态播动画
+    protected override void Die()
+    {
+        base.Die();
+        stateMachine.ChangeState(deathState);
     }
 }

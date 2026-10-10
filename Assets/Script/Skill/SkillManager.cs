@@ -13,9 +13,9 @@ public class SkillManager : MonoBehaviour
     public Crystal_Skill crystal { get; private set; }
 
     [Header("水晶生成（闪避）")]
-    [SerializeField] private float crystalSpawnInterval = .08f;   // 多个水晶之间的生成间隔（秒）
+    [SerializeField] private float crystalSpawnInterval = .08f;   // 每个水晶之间的间隔
 
-    /// 供 Crystal_Skill 读取：放在 SkillManager 上方便对着实际效果微调
+    // 挂在这儿方便在 Inspector 里对着效果调
     public float CrystalSpawnInterval => crystalSpawnInterval;
     
 
@@ -30,9 +30,7 @@ public class SkillManager : MonoBehaviour
             instance = this;
         }
 
-        // 技能引用的赋值放在 Awake 而不是 Start：
-        // 所有对象的 Awake 都早于任何 Start，这样才能保证别的脚本在 Start/Update 里
-        // 通过 SkillManager.instance.dash 取技能时已经拿得到，不会出现空引用。
+        // 放 Awake 不放 Start，所有 Awake 都在 Start 之前，别处取 instance.dash 才不会空
         dash = GetComponent<Dash_Skill>();
         clone = GetComponent<Clone_Skill>();
         sword = GetComponent<Sword_Skill>();

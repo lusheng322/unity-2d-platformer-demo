@@ -19,16 +19,10 @@ public class Skill : MonoBehaviour
         cooldownTimer -= Time.deltaTime;
     }
 
-    /// <summary>
-    /// 纯查询：冷却好了没有。没有副作用，可以放心用于"能不能放"的判断。
-    /// </summary>
+    // 只判断冷却好没好，没副作用
     public virtual bool IsReady() => cooldownTimer < 0f;
 
-    /// <summary>
-    /// 判断并释放：冷却好就调用 UseSkill() 并重置冷却。
-    /// 注意这个方法有副作用（原来的命名容易让人误以为它只是查询），
-    /// 只想要判断时请用 IsReady()。
-    /// </summary>
+    // 名字像判断，其实冷却好了会直接放技能；只想判断用 IsReady()
     public virtual bool CanUseSkill()
     {
         if (!IsReady())

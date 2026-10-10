@@ -2,9 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// 水晶的运行时控制器：计时、追踪最近敌人、生长、爆炸伤害。
-/// </summary>
+// 水晶运行时：计时、追最近敌人、生长、爆炸
 public class Crystal_Skill_Controller : MonoBehaviour
 {
     private Animator anim => GetComponent<Animator>();
@@ -19,7 +17,7 @@ public class Crystal_Skill_Controller : MonoBehaviour
     private bool canGrow;
     private float growSpeed = 5;
 
-    private bool hasFinished;       // 防止重复触发爆炸/重复销毁
+    private bool hasFinished;       // 防止重复爆炸/重复销毁
 
     private Transform cloestEnemy;
 
@@ -45,8 +43,7 @@ public class Crystal_Skill_Controller : MonoBehaviour
             return;
         }
 
-        // 加 null 判断：范围内没有敌人时 cloestEnemy 为空，
-        // 原代码会在这里抛 NullReferenceException（闪避生成水晶时很容易触发）。
+        // 附近没敌人时 cloestEnemy 是空的，不判 null 会报空引用
         if (canMove && cloestEnemy != null)
         {
             transform.position = Vector2.MoveTowards(transform.position, cloestEnemy.transform.position, moveSpeed * Time.deltaTime);
@@ -65,7 +62,7 @@ public class Crystal_Skill_Controller : MonoBehaviour
         }
     }
 
-    /// 结束水晶：会爆炸的就播爆炸动画（动画事件里再调用 SelfDestroy），否则直接销毁
+    // 会爆炸的播动画（动画事件里再调 SelfDestroy），不爆的直接销毁
     public void FinishCrystal()
     {
         if (hasFinished)
@@ -89,7 +86,7 @@ public class Crystal_Skill_Controller : MonoBehaviour
         Destroy(gameObject);
     }
 
-    /// 由爆炸动画的事件调用：对范围内的敌人造成伤害
+    // 爆炸动画事件调的，对圈内敌人造成伤害
     private void CrystalExplodeTrigger()
     {
         Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, cd.radius);

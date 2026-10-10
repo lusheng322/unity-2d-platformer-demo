@@ -9,11 +9,11 @@ public class Sword_Skill_Controller : MonoBehaviour
     private Player player;
 
     [Header("Lifetime")]
-    [SerializeField] private float swordLifetime = 12f;      // 安全网：无论处于什么状态，超时后销毁，避免剑永久留在场上
+    [SerializeField] private float swordLifetime = 12f;      // 兜底：超时就销毁，免得剑永久留在场上
 
     private bool canRotate = true;
     private bool isReturning;
-    private bool isStuckInEnvironment;      // 是否插在墙/地面上（只有这种状态才允许玩家右键召回）
+    private bool isStuckInEnvironment;      // 插在墙/地上，只有这种才能右键召回
 
     private float freezeTimeDuratiom;
     private float returnSpeed;
@@ -24,7 +24,7 @@ public class Sword_Skill_Controller : MonoBehaviour
     [Header("Bounce Info")]
     private int bounceSpeed;
     private bool isBouncing;
-    private bool bounceActive;              // 是否已经收集到目标、真正进入"弹射追击"阶段
+    private bool bounceActive;              // 已经收到目标，真正开始弹射了
     private int bounceAmount;
     private List<Transform> EnemyTarget;
     private int targetIndex;
@@ -67,8 +67,7 @@ public class Sword_Skill_Controller : MonoBehaviour
         
         spinDirection = Mathf.Clamp(rb.velocity.x, -1, 1);
 
-        // 原来写死 7 秒：弹射/旋转还没走完剑就被销毁，玩家会觉得"剑莫名其妙消失了"。
-        // 现在改成可配置的安全网时长，并且下面的 BounceLogic 会在目标失效时主动让剑回旋。
+        // 原来写死 7 秒，弹射没走完剑就没了；改成可配，目标没了就主动回旋
         Invoke(nameof(DestroyMe), swordLifetime);
 
     }
@@ -103,11 +102,7 @@ public class Sword_Skill_Controller : MonoBehaviour
         isReturning = true;
     }
 
-    /// <summary>
-    /// 是否允许玩家用右键召回这把剑。
-    /// 只有"插在墙/地面上的剑"（isStuckInEnvironment）可以召回；
-    /// 飞行中、弹射追击中、原地旋转中的剑都不允许，避免召回时机错乱引起的一系列问题。
-    /// </summary>
+    // 只有插在墙/地上的剑能召回，飞着/弹射/旋转中召回会乱
     public bool CanBeRecalled() => isStuckInEnvironment && !isReturning;
 
     private void Update()
@@ -121,16 +116,14 @@ public class Sword_Skill_Controller : MonoBehaviour
         {
             transform.position = Vector2.MoveTowards(transform.position, player.transform.position, returnSpeed * Time.deltaTime);
 
-            // 只有玩家处于"可以接剑"的状态才接。
-            // 万一玩家正在黑洞/冲刺演出中，剑就一直跟着玩家飞，等回到普通状态再接住，
-            // 避免强行切状态把演出打断（角色掉下来但黑洞还在）。
+            // 玩家能接才接。黑洞/冲刺演出中就跟着飞，等回普通状态再说
             if (Vector2.Distance(transform.position, player.transform.position) < 1 && player.CanCatchSword())
             {
                 player.CatchTheSword();
             }
         }
 
-        // 插在墙/地面上的剑：玩家走过去就能直接捡回来（不需要再按右键）
+        // 插在墙/地上的剑，走过去直接捡，不用按右键
         if (isStuckInEnvironment && !isReturning
             && Vector2.Distance(transform.position, player.transform.position) < 1f
             && player.CanCatchSword())
@@ -146,9 +139,8 @@ public class Sword_Skill_Controller : MonoBehaviour
     {
         if (isSpinning)
         {
-            // 飞出 maxTravelDistance 后就地停下进入旋转。
-            // 注意这里必须是 !wasStopped：原代码写的是 wasStopped，导致停下之后每帧都会再触发一次
-            // StopWhenSpinning()，而它会把 spinTimer 重置成 spinDuration —— 结果是剑永远转下去、永远不回旋。
+            // 这里必须是 !wasStopped：原代码没加 !，停下来之后每帧都重复 StopWhenSpinning()，
+            // 而它把 spinTimer 重置回 spinDuration，结果剑永远转下去不回旋
             if (!wasStopped && Vector2.Distance(player.transform.position, transform.position) > maxTravelDistance)
             {
                 StopWhenSpinning();
@@ -193,15 +185,12 @@ public class Sword_Skill_Controller : MonoBehaviour
 
     private void BounceLogic()
     {
-        // 注意这里的 bounceActive：
-        // isBouncing 表示"这把剑的配置是弹射模式"，而 bounceActive 表示"已经命中敌人、开始依次弹射目标"。
-        // 只有后者才由本方法接管剑的移动。
-        // 如果剑是先撞到墙/地面而插住（没收集到任何敌人），就应该保持插在原地等玩家召回，
-        // 否则会出现"刚扔出去就自己飞回来、主角原地接剑"的怪现象。
+        // isBouncing 是配置了弹射模式，bounceActive 是真收到目标了，只有后者才接管移动
+        // 先撞墙插住（一个敌人都没收到）就老实插着等召回，不然剑会自己飞回来主角原地接
         if (!isBouncing || !bounceActive)
             return;
 
-        // 目标全部消失 → 立刻回旋，别让剑停在原地等超时销毁
+        // 目标全没了就立刻回旋，别干等超时
         if (EnemyTarget == null || EnemyTarget.Count <= 0)
         {
             isBouncing = false;
@@ -215,7 +204,7 @@ public class Sword_Skill_Controller : MonoBehaviour
 
         Transform target = EnemyTarget[targetIndex];
 
-        // 目标在弹射途中被销毁 → 从列表里剔除，换下一个目标
+        // 目标中途被销毁，踢出列表换下一个
         if (target == null)
         {
             EnemyTarget.RemoveAt(targetIndex);
@@ -263,7 +252,7 @@ public class Sword_Skill_Controller : MonoBehaviour
     private void swordSkillDamage(Enemy enemy)
     {
         enemy.Damage();
-        // 直接传枚举器，替代字符串版 StartCoroutine("FreezeTimerFor", ...)（避免反射调用与拼写风险）
+        // 直接传枚举器，别用字符串版 StartCoroutine，拼错只有运行时才知道
         enemy.StartCoroutine(enemy.FreezeTimerFor(freezeTimeDuratiom));
     }
 
@@ -281,8 +270,7 @@ public class Sword_Skill_Controller : MonoBehaviour
                         EnemyTarget.Add(hit.transform);
                 }
 
-                // 只有真的收集到目标，才进入"弹射追击"阶段；
-                // 没收集到（比如周围没有敌人）就让剑按原逻辑插在原地，等玩家右键召回。
+                // 真收到目标才进入弹射，没收到就插在原地等召回
                 bounceActive = EnemyTarget.Count > 0;
             }
         }
@@ -298,14 +286,14 @@ public class Sword_Skill_Controller : MonoBehaviour
 
         if (isSpinning)
         {
-            // 撞到敌人：就地停下继续旋转（对范围内敌人持续伤害）
+            // 撞到敌人就地停下继续转，持续造成伤害
             if (collision.GetComponent<Enemy>() != null)
             {
                 StopWhenSpinning();
                 return;
             }
 
-            // 撞到墙/地面：结束旋转，走到下面"扎住"的流程 → 直接扎在墙/地面上
+            // 撞到墙/地就停转，往下走去扎住
             isSpinning = false;
         }
 
@@ -320,6 +308,6 @@ public class Sword_Skill_Controller : MonoBehaviour
 
         anim.SetBool("Rotation", false);
         transform.parent = collision.transform;
-        isStuckInEnvironment = true;        // 插在墙/地面上了，此时才允许玩家右键召回
+        isStuckInEnvironment = true;        // 插住了，这时候才允许右键召回
     }
 }

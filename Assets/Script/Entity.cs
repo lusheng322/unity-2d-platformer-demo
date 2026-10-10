@@ -49,8 +49,7 @@ public class Entity : MonoBehaviour
 
     public virtual void Damage()
     {
-        // 用直接调用替代 StartCoroutine("FlashFX")：
-        // 字符串版走反射，方法名拼错只会在运行时才暴露，而且 IDE 无法跳转/重构。
+        // 别用字符串版 StartCoroutine，走反射，名字写错只有运行时才知道
         if (fX != null)
             fX.StartCoroutine(fX.FlashFX());
 
@@ -88,7 +87,22 @@ public class Entity : MonoBehaviour
 
     #region Collsion
     public virtual bool IsGroundDetected() => Physics2D.Raycast(groundCheck.position, Vector2.down, groundCheckDistance, whatIsGround);
-    public virtual bool IsWallDetected() => Physics2D.Raycast(wallCheck.position, Vector2.right * facingDir, wallCheckDistance, whatIsGround);
+    public virtual bool IsWallDetected()
+    {
+        Vector2 dir = Vector2.right * facingDir;
+
+        if (Physics2D.Raycast(wallCheck.position, dir, wallCheckDistance, whatIsGround))
+            return true;
+
+        // wallCheck 摆在物体中心的话，射线从中心出发还没走到墙就到头了（敌人的 WallCheck 就是这种），
+        // 所以再补一次从碰撞体前沿往外打的检测；玩家的墙跳不受影响，原来那条照样生效
+        Collider2D col = GetComponent<Collider2D>();
+        if (col == null)
+            return false;
+
+        Vector2 origin = new Vector2(col.bounds.center.x + col.bounds.extents.x * facingDir, wallCheck.position.y);
+        return Physics2D.Raycast(origin, dir, wallCheckDistance, whatIsGround);
+    }
     protected virtual void OnDrawGizmos()
     {
         Gizmos.DrawLine(groundCheck.position, new Vector3(groundCheck.position.x, groundCheck.position.y - groundCheckDistance));

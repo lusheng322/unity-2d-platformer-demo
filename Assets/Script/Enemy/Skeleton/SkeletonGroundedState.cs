@@ -25,7 +25,11 @@ public class SkeletonGroundedState : EnemyState
     public override void Update()
     {
         base.Update();
-        if(enemy.IsPlayerDetected() || Vector2.Distance(enemy.transform.position,player.position) < 2)
+
+        // 被墙或悬崖挡住时不进战斗，否则会和 BattleState 每帧来回切
+        bool blocked = enemy.IsWallDetected() || !enemy.IsGroundDetected();
+
+        if(!blocked && (enemy.IsPlayerDetected() || Vector2.Distance(enemy.transform.position,player.position) < 2))
         {
             stateMachine.ChangeState(enemy.battleState);
         }
